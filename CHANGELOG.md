@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 (unreleased)
+## 1.0.0 (2026-10-24)
 
 The first release: an MCP server that lets a coding agent use a real Chromium in Docker, read as short text and kept
 to the hosts you allow.
