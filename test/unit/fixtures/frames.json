@@ -1,0 +1,106 @@
+{
+ "title": "Neighbours",
+ "url": "http://allowed.fixture.test/frames",
+ "metrics": {
+  "width": 1024,
+  "height": 644,
+  "scrollY": 0,
+  "scrollHeight": 644
+ },
+ "tree": [
+  {
+   "role": "generic",
+   "active": true,
+   "ref": "f4e1",
+   "box": {
+    "x": 8,
+    "y": 21,
+    "width": 1008,
+    "height": 331
+   },
+   "children": [
+    {
+     "role": "heading",
+     "name": "Neighbours",
+     "level": 1,
+     "ref": "f4e2",
+     "box": {
+      "x": 8,
+      "y": 21,
+      "width": 1008,
+      "height": 43
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f4e3",
+     "box": {
+      "x": 8,
+      "y": 86,
+      "width": 1008,
+      "height": 22
+     },
+     "text": "The weather box comes from the next farm over."
+    },
+    {
+     "role": "iframe",
+     "ref": "f4e4",
+     "box": {
+      "x": 8,
+      "y": 124,
+      "width": 504,
+      "height": 224
+     },
+     "children": [
+      {
+       "role": "generic",
+       "ref": "f5e1",
+       "box": {
+        "x": 8,
+        "y": 20,
+        "width": 484,
+        "height": 115
+       },
+       "children": [
+        {
+         "role": "heading",
+         "name": "Valley weather",
+         "level": 2,
+         "ref": "f5e2",
+         "box": {
+          "x": 8,
+          "y": 20,
+          "width": 484,
+          "height": 33
+         }
+        },
+        {
+         "role": "paragraph",
+         "ref": "f5e3",
+         "box": {
+          "x": 8,
+          "y": 73,
+          "width": 484,
+          "height": 22
+         },
+         "text": "Light rain until noon, then sun."
+        },
+        {
+         "role": "button",
+         "name": "Refresh the weather",
+         "ref": "f5e4",
+         "box": {
+          "x": 8,
+          "y": 111,
+          "width": 143,
+          "height": 24
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

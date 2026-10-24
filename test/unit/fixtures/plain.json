@@ -1,0 +1,86 @@
+{
+ "title": "Seed almanac",
+ "url": "http://allowed.fixture.test/plain",
+ "metrics": {
+  "width": 1024,
+  "height": 644,
+  "scrollY": 0,
+  "scrollHeight": 644
+ },
+ "tree": [
+  {
+   "role": "generic",
+   "active": true,
+   "ref": "f6e1",
+   "box": {
+    "x": 8,
+    "y": 21,
+    "width": 1008,
+    "height": 184
+   },
+   "children": [
+    {
+     "role": "heading",
+     "name": "Seed almanac",
+     "level": 1,
+     "ref": "f6e2",
+     "box": {
+      "x": 8,
+      "y": 21,
+      "width": 1008,
+      "height": 43
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f6e3",
+     "box": {
+      "x": 8,
+      "y": 86,
+      "width": 1008,
+      "height": 22
+     },
+     "children": [
+      "Read the",
+      {
+       "role": "link",
+       "name": "sowing chart",
+       "ref": "f6e4",
+       "cursor": "pointer",
+       "box": {
+        "x": 79,
+        "y": 86,
+        "width": 97,
+        "height": 22
+       },
+       "url": "/next"
+      },
+      "before you plant, and keep it by the door."
+     ]
+    },
+    {
+     "role": "paragraph",
+     "ref": "f6e5",
+     "box": {
+      "x": 8,
+      "y": 124,
+      "width": 1008,
+      "height": 44
+     },
+     "text": "Sow peas as soon as the ground can be worked. Thin carrots when they are a finger tall. Mulch garlic in late autumn and pull it when half the leaves have browned."
+    },
+    {
+     "role": "paragraph",
+     "ref": "f6e6",
+     "box": {
+      "x": 8,
+      "y": 184,
+      "width": 1008,
+      "height": 22
+     },
+     "text": "Keep a notebook: what went in, where, and when it came up."
+    }
+   ]
+  }
+ ]
+}

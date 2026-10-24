@@ -1,0 +1,893 @@
+{
+ "title": "Field guide",
+ "url": "http://allowed.fixture.test/long",
+ "metrics": {
+  "width": 1024,
+  "height": 644,
+  "scrollY": 0,
+  "scrollHeight": 4499
+ },
+ "tree": [
+  {
+   "role": "generic",
+   "active": true,
+   "ref": "f2e1",
+   "box": {
+    "x": 8,
+    "y": 8,
+    "width": 993,
+    "height": 4475
+   },
+   "children": [
+    {
+     "role": "navigation",
+     "name": "Guide sections",
+     "ref": "f2e2",
+     "box": {
+      "x": 8,
+      "y": 8,
+      "width": 993,
+      "height": 35
+     },
+     "children": [
+      {
+       "role": "link",
+       "name": "Planting",
+       "ref": "f2e3",
+       "cursor": "pointer",
+       "box": {
+        "x": 14,
+        "y": 14,
+        "width": 62,
+        "height": 22
+       },
+       "url": "#planting"
+      },
+      {
+       "role": "link",
+       "name": "Watering",
+       "ref": "f2e4",
+       "cursor": "pointer",
+       "box": {
+        "x": 80,
+        "y": 14,
+        "width": 69,
+        "height": 22
+       },
+       "url": "#watering"
+      },
+      {
+       "role": "link",
+       "name": "Harvest",
+       "ref": "f2e5",
+       "cursor": "pointer",
+       "box": {
+        "x": 153,
+        "y": 14,
+        "width": 58,
+        "height": 22
+       },
+       "url": "#harvest"
+      }
+     ]
+    },
+    {
+     "role": "heading",
+     "name": "Field guide",
+     "level": 1,
+     "ref": "f2e6",
+     "box": {
+      "x": 8,
+      "y": 64,
+      "width": 993,
+      "height": 43
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e7",
+     "box": {
+      "x": 8,
+      "y": 129,
+      "width": 993,
+      "height": 154
+     },
+     "text": "The valley's oldest seed library began in a borrowed shed with three shelves and a ledger. Library note 1: keep the rows weeded, water at dawn, and write down what came up and when. Library note 2: keep the rows weeded, water at dawn, and write down what came up and when. Library note 3: keep the rows weeded, water at dawn, and write down what came up and when. Library note 4: keep the rows weeded, water at dawn, and write down what came up and when. Library note 5: keep the rows weeded, water at dawn, and write down what came up and when. Library note 6: keep the rows weeded, water at dawn, and write down what came up and when. Library note 7: keep the rows weeded, water at dawn, and write down what came up and when. Library note 8: keep the rows weeded, water at dawn, and write down what came up and when. It still lends seeds every spring."
+    },
+    {
+     "role": "heading",
+     "name": "Planting",
+     "level": 2,
+     "ref": "f2e8",
+     "box": {
+      "x": 8,
+      "y": 303,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e9",
+     "box": {
+      "x": 8,
+      "y": 356,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 1 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 1 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 1 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 1 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 1 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Watering",
+     "level": 2,
+     "ref": "f2e10",
+     "box": {
+      "x": 8,
+      "y": 464,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e11",
+     "box": {
+      "x": 8,
+      "y": 517,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 2 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 2 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 2 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 2 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 2 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 3",
+     "level": 2,
+     "ref": "f2e12",
+     "box": {
+      "x": 8,
+      "y": 624,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e13",
+     "box": {
+      "x": 8,
+      "y": 677,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 3 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 3 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 3 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 3 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 3 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 4",
+     "level": 2,
+     "ref": "f2e14",
+     "box": {
+      "x": 8,
+      "y": 785,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e15",
+     "box": {
+      "x": 8,
+      "y": 838,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 4 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 4 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 4 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 4 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 4 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 5",
+     "level": 2,
+     "ref": "f2e16",
+     "box": {
+      "x": 8,
+      "y": 946,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e17",
+     "box": {
+      "x": 8,
+      "y": 999,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 5 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 5 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 5 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 5 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 5 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 6",
+     "level": 2,
+     "ref": "f2e18",
+     "box": {
+      "x": 8,
+      "y": 1107,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e19",
+     "box": {
+      "x": 8,
+      "y": 1160,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 6 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 6 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 6 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 6 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 6 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 7",
+     "level": 2,
+     "ref": "f2e20",
+     "box": {
+      "x": 8,
+      "y": 1268,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e21",
+     "box": {
+      "x": 8,
+      "y": 1321,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 7 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 7 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 7 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 7 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 7 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 8",
+     "level": 2,
+     "ref": "f2e22",
+     "box": {
+      "x": 8,
+      "y": 1428,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e23",
+     "box": {
+      "x": 8,
+      "y": 1481,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 8 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 8 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 8 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 8 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 8 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 9",
+     "level": 2,
+     "ref": "f2e24",
+     "box": {
+      "x": 8,
+      "y": 1589,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e25",
+     "box": {
+      "x": 8,
+      "y": 1642,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 9 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 9 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 9 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 9 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 9 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 10",
+     "level": 2,
+     "ref": "f2e26",
+     "box": {
+      "x": 8,
+      "y": 1750,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e27",
+     "box": {
+      "x": 8,
+      "y": 1803,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 10 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 10 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 10 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 10 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 10 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 11",
+     "level": 2,
+     "ref": "f2e28",
+     "box": {
+      "x": 8,
+      "y": 1911,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e29",
+     "box": {
+      "x": 8,
+      "y": 1964,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 11 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 11 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 11 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 11 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 11 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 12",
+     "level": 2,
+     "ref": "f2e30",
+     "box": {
+      "x": 8,
+      "y": 2072,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e31",
+     "box": {
+      "x": 8,
+      "y": 2125,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 12 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 12 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 12 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 12 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 12 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 13",
+     "level": 2,
+     "ref": "f2e32",
+     "box": {
+      "x": 8,
+      "y": 2233,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e33",
+     "box": {
+      "x": 8,
+      "y": 2285,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 13 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 13 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 13 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 13 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 13 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Part 14",
+     "level": 2,
+     "ref": "f2e34",
+     "box": {
+      "x": 8,
+      "y": 2393,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e35",
+     "box": {
+      "x": 8,
+      "y": 2446,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Part 14 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Part 14 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Part 14 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Part 14 note 4: keep the rows weeded, water at dawn, and write down what came up and when. Part 14 note 5: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "article",
+     "name": "Growing guide",
+     "ref": "f2e36",
+     "box": {
+      "x": 8,
+      "y": 2554,
+      "width": 993,
+      "height": 507
+     },
+     "children": [
+      {
+       "role": "heading",
+       "name": "Growing guide",
+       "level": 2,
+       "ref": "f2e37",
+       "box": {
+        "x": 8,
+        "y": 2554,
+        "width": 993,
+        "height": 33
+       }
+      },
+      {
+       "role": "paragraph",
+       "ref": "f2e38",
+       "box": {
+        "x": 8,
+        "y": 2607,
+        "width": 993,
+        "height": 44
+       },
+       "text": "Most seeds want warm soil, steady water and patience. Sow them twice as deep as they are wide, firm the soil, and keep it damp until the first leaves show."
+      },
+      {
+       "role": "list",
+       "ref": "f2e39",
+       "box": {
+        "x": 8,
+        "y": 2667,
+        "width": 993,
+        "height": 66
+       },
+       "children": [
+        {
+         "role": "listitem",
+         "ref": "f2e40",
+         "box": {
+          "x": 48,
+          "y": 2667,
+          "width": 953,
+          "height": 22
+         },
+         "text": "Beans: sow after the last frost."
+        },
+        {
+         "role": "listitem",
+         "ref": "f2e41",
+         "box": {
+          "x": 48,
+          "y": 2689,
+          "width": 953,
+          "height": 22
+         },
+         "text": "Kale: sow in early spring or late summer."
+        },
+        {
+         "role": "listitem",
+         "ref": "f2e42",
+         "box": {
+          "x": 48,
+          "y": 2711,
+          "width": 953,
+          "height": 22
+         },
+         "text": "Squash: sow on a mound, three seeds together."
+        }
+       ]
+      },
+      {
+       "role": "table",
+       "ref": "f2e43",
+       "box": {
+        "x": 8,
+        "y": 2749,
+        "width": 185,
+        "height": 80
+       },
+       "children": [
+        {
+         "role": "rowgroup",
+         "ref": "f2e44",
+         "box": {
+          "x": 10,
+          "y": 2751,
+          "width": 181,
+          "height": 76
+         },
+         "children": [
+          {
+           "role": "row",
+           "ref": "f2e45",
+           "box": {
+            "x": 10,
+            "y": 2751,
+            "width": 181,
+            "height": 24
+           },
+           "children": [
+            {
+             "role": "columnheader",
+             "name": "Crop",
+             "ref": "f2e46",
+             "box": {
+              "x": 10,
+              "y": 2751,
+              "width": 52,
+              "height": 24
+             }
+            },
+            {
+             "role": "columnheader",
+             "name": "Days to harvest",
+             "ref": "f2e47",
+             "box": {
+              "x": 64,
+              "y": 2751,
+              "width": 127,
+              "height": 24
+             }
+            }
+           ]
+          },
+          {
+           "role": "row",
+           "ref": "f2e48",
+           "box": {
+            "x": 10,
+            "y": 2777,
+            "width": 181,
+            "height": 24
+           },
+           "children": [
+            {
+             "role": "cell",
+             "name": "Radish",
+             "ref": "f2e49",
+             "box": {
+              "x": 10,
+              "y": 2777,
+              "width": 52,
+              "height": 24
+             }
+            },
+            {
+             "role": "cell",
+             "name": "25",
+             "ref": "f2e50",
+             "box": {
+              "x": 64,
+              "y": 2777,
+              "width": 127,
+              "height": 24
+             }
+            }
+           ]
+          },
+          {
+           "role": "row",
+           "ref": "f2e51",
+           "box": {
+            "x": 10,
+            "y": 2803,
+            "width": 181,
+            "height": 24
+           },
+           "children": [
+            {
+             "role": "cell",
+             "name": "Carrot",
+             "ref": "f2e52",
+             "box": {
+              "x": 10,
+              "y": 2803,
+              "width": 52,
+              "height": 24
+             }
+            },
+            {
+             "role": "cell",
+             "name": "70",
+             "ref": "f2e53",
+             "box": {
+              "x": 64,
+              "y": 2803,
+              "width": 127,
+              "height": 24
+             }
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "role": "paragraph",
+       "ref": "f2e54",
+       "box": {
+        "x": 8,
+        "y": 2845,
+        "width": 993,
+        "height": 110
+       },
+       "text": "Guide note 1: keep the rows weeded, water at dawn, and write down what came up and when. Guide note 2: keep the rows weeded, water at dawn, and write down what came up and when. Guide note 3: keep the rows weeded, water at dawn, and write down what came up and when. Guide note 4: keep the rows weeded, water at dawn, and write down what came up and when. Guide note 5: keep the rows weeded, water at dawn, and write down what came up and when. Guide note 6: keep the rows weeded, water at dawn, and write down what came up and when."
+      },
+      {
+       "role": "heading",
+       "name": "Saving seed",
+       "level": 3,
+       "ref": "f2e55",
+       "box": {
+        "x": 8,
+        "y": 2974,
+        "width": 993,
+        "height": 25
+       }
+      },
+      {
+       "role": "paragraph",
+       "ref": "f2e56",
+       "box": {
+        "x": 8,
+        "y": 3018,
+        "width": 993,
+        "height": 44
+       },
+       "text": "Let a few plants go to seed, dry the pods on a screen, and store the seed in paper envelopes in a cool, dark drawer. Label each envelope with the variety and the year."
+      }
+     ]
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 1",
+     "level": 2,
+     "ref": "f2e57",
+     "box": {
+      "x": 8,
+      "y": 3081,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e58",
+     "box": {
+      "x": 8,
+      "y": 3134,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 1 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 1 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 1 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 1 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 2",
+     "level": 2,
+     "ref": "f2e59",
+     "box": {
+      "x": 8,
+      "y": 3242,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e60",
+     "box": {
+      "x": 8,
+      "y": 3295,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 2 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 2 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 2 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 2 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 3",
+     "level": 2,
+     "ref": "f2e61",
+     "box": {
+      "x": 8,
+      "y": 3403,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e62",
+     "box": {
+      "x": 8,
+      "y": 3456,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 3 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 3 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 3 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 3 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 4",
+     "level": 2,
+     "ref": "f2e63",
+     "box": {
+      "x": 8,
+      "y": 3564,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e64",
+     "box": {
+      "x": 8,
+      "y": 3617,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 4 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 4 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 4 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 4 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 5",
+     "level": 2,
+     "ref": "f2e65",
+     "box": {
+      "x": 8,
+      "y": 3725,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e66",
+     "box": {
+      "x": 8,
+      "y": 3778,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 5 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 5 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 5 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 5 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 6",
+     "level": 2,
+     "ref": "f2e67",
+     "box": {
+      "x": 8,
+      "y": 3885,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e68",
+     "box": {
+      "x": 8,
+      "y": 3938,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 6 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 6 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 6 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 6 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 7",
+     "level": 2,
+     "ref": "f2e69",
+     "box": {
+      "x": 8,
+      "y": 4046,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e70",
+     "box": {
+      "x": 8,
+      "y": 4099,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 7 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 7 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 7 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 7 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Appendix 8",
+     "level": 2,
+     "ref": "f2e71",
+     "box": {
+      "x": 8,
+      "y": 4207,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e72",
+     "box": {
+      "x": 8,
+      "y": 4260,
+      "width": 993,
+      "height": 88
+     },
+     "text": "Appendix 8 note 1: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 8 note 2: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 8 note 3: keep the rows weeded, water at dawn, and write down what came up and when. Appendix 8 note 4: keep the rows weeded, water at dawn, and write down what came up and when."
+    },
+    {
+     "role": "heading",
+     "name": "Harvest calendar",
+     "level": 2,
+     "ref": "f2e73",
+     "box": {
+      "x": 8,
+      "y": 4368,
+      "width": 993,
+      "height": 33
+     }
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e74",
+     "box": {
+      "x": 8,
+      "y": 4421,
+      "width": 993,
+      "height": 22
+     },
+     "text": "Pick beans young, squash before the frost, and kale after it."
+    },
+    {
+     "role": "paragraph",
+     "ref": "f2e75",
+     "box": {
+      "x": 8,
+      "y": 4459,
+      "width": 993,
+      "height": 24
+     },
+     "children": [
+      {
+       "role": "button",
+       "name": "Order the printed guide",
+       "ref": "f2e76",
+       "box": {
+        "x": 8,
+        "y": 4459,
+        "width": 165,
+        "height": 24
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" width="960" height="380" role="img" aria-labelledby="t d">
+  <title id="t">sandboxed-browser-mcp: a real browser for your agent, fenced to the sites you allow</title>
+  <desc id="d">Claude Code, Codex and pi call eleven browser tools over MCP. The tools drive Chromium in a Docker container: an allowed site loads, a site off the list is refused, and page text comes back marked as untrusted.</desc>
+  <style>
+    .bg { fill: #f6f8fa; }
+    .card { fill: #ffffff; stroke: #d0d7de; stroke-width: 1.5; }
+    .box { fill: none; stroke: #8250df; stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .head { fill: #1f2328; font: 600 17px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .muted { fill: #59636e; font: 13px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .mono { fill: #1f2328; font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .smallmono { fill: #59636e; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .core { fill: #8250df; }
+    .coretext { fill: #ffffff; font: 700 24px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .coresub { fill: #eee6ff; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ok { fill: #1a7f37; font: 600 15px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .no { fill: #cf222e; font: 600 15px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .wrap { fill: #ddf4ff; stroke: #54aeff; stroke-width: 1.2; }
+    .flow { stroke: #8250df; stroke-width: 2.5; fill: none; stroke-dasharray: 8 7; animation: flow 1.2s linear infinite; }
+    .tag { fill: #1f2328; font: 600 20px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .pulse { animation: pulse 6s ease-in-out infinite; transform-origin: 470px 190px; }
+    .r1 { animation: show 6s ease-out infinite; animation-delay: 0.3s; }
+    .r2 { animation: show 6s ease-out infinite; animation-delay: 0.6s; }
+    .r3 { animation: show 6s ease-out infinite; animation-delay: 0.9s; }
+    @keyframes flow { to { stroke-dashoffset: -30; } }
+    @keyframes pulse { 0%, 30% { transform: scale(1); } 40% { transform: scale(1.06); } 50%, 100% { transform: scale(1); } }
+    @keyframes show { 0%, 45% { opacity: 0; } 55%, 92% { opacity: 1; } 100% { opacity: 0; } }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .card { fill: #161b22; stroke: #30363d; }
+      .head, .mono, .tag { fill: #e6edf3; }
+      .muted, .smallmono { fill: #9198a1; }
+      .wrap { fill: #0c2d6b; stroke: #388bfd; }
+      .ok { fill: #3fb950; }
+      .no { fill: #f85149; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .flow, .pulse, .r1, .r2, .r3 { animation: none; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="960" height="380" rx="18"/>
+
+  <!-- Your agents -->
+  <text class="muted" x="38" y="56">your agent</text>
+  <rect class="card" x="36" y="70" width="210" height="62" rx="12"/>
+  <text class="head" x="56" y="107">Claude Code</text>
+  <rect class="card" x="36" y="150" width="210" height="62" rx="12"/>
+  <text class="head" x="56" y="187">Codex</text>
+  <rect class="card" x="36" y="230" width="210" height="62" rx="12"/>
+  <text class="head" x="56" y="267">pi</text>
+
+  <path class="flow" d="M246 101 C 300 101, 310 190, 360 190"/>
+  <path class="flow" d="M246 181 C 290 181, 310 190, 360 190"/>
+  <path class="flow" d="M246 261 C 300 261, 310 190, 360 190"/>
+
+  <!-- The server -->
+  <g class="pulse">
+    <rect class="core" x="360" y="134" width="220" height="112" rx="56"/>
+    <text class="coretext" x="470" y="186" text-anchor="middle">browser</text>
+    <text class="coresub" x="470" y="210" text-anchor="middle">11 tools over MCP</text>
+  </g>
+  <path class="flow" d="M580 190 L 628 190"/>
+
+  <!-- The sandboxed browser -->
+  <rect class="box" x="628" y="44" width="300" height="270" rx="16"/>
+  <text class="muted" x="648" y="70">Chromium in Docker, on 127.0.0.1</text>
+  <rect class="card" x="646" y="84" width="264" height="62" rx="12"/>
+  <text class="mono" x="664" y="110">docs.example.com</text>
+  <text class="ok r1" x="664" y="132">✓ on your list: loaded</text>
+  <rect class="card" x="646" y="160" width="264" height="62" rx="12"/>
+  <text class="mono" x="664" y="186">tracker.example.net</text>
+  <text class="no r2" x="664" y="208">✗ not on the list: refused</text>
+  <rect class="wrap r3" x="646" y="236" width="264" height="62" rx="10"/>
+  <text class="smallmono r3" x="664" y="262">page text comes back as</text>
+  <text class="smallmono r3" x="664" y="282">&lt;untrusted-web-content&gt;</text>
+
+  <text class="tag" x="480" y="352" text-anchor="middle">A real browser for your agent, fenced to the sites you allow.</text>
+</svg>

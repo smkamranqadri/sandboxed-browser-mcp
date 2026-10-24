@@ -1,0 +1,41 @@
+{
+  "name": "sandboxed-browser-mcp",
+  "version": "1.0.0",
+  "description": "A standalone stdio MCP server that drives a sandboxed Chromium container over CDP: eleven browser tools sized for a model, with a host allowlist and untrusted-content envelope",
+  "type": "module",
+  "license": "MIT",
+  "author": "Muhammad Kamran",
+  "homepage": "https://github.com/smkamranqadri/sandboxed-browser-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smkamranqadri/sandboxed-browser-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/smkamranqadri/sandboxed-browser-mcp/issues"
+  },
+  "keywords": ["mcp", "model-context-protocol", "browser", "chromium", "cdp", "playwright", "sandbox", "docker", "ai-agents"],
+  "private": true,
+  "engines": {
+    "node": ">=22.4"
+  },
+  "bin": {
+    "sandboxed-browser-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "test:unit": "npm run build && node --test --test-reporter=spec 'test/unit/*.test.mjs'",
+    "test:integration": "npm run build && node --test --test-concurrency=1 --test-reporter=spec 'test/integration/*.test.mjs'",
+    "test": "npm run test:unit && npm run test:integration",
+    "stack:test:up": "docker compose -p sandboxed-browser-mcp-test --env-file docker/.env.test -f docker/compose.yaml -f docker/compose.test.yaml up -d",
+    "stack:test:down": "docker compose -p sandboxed-browser-mcp-test --env-file docker/.env.test -f docker/compose.yaml -f docker/compose.test.yaml down -v"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "playwright-core": "1.64.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "typescript": "6.0.3"
+  }
+}

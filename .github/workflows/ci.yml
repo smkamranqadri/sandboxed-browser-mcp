@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Build and the browser-free tests on the oldest supported Node and the current ones.
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.4.0", "24", "26"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+      - run: bash -n install.sh
+
+  # The tools against a real Chromium: the test stack (docker/compose.test.yaml), as in the README's Tests section.
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Test stack settings (a throwaway password, never printed)
+        run: |
+          umask 077
+          printf 'BROWSER_PASSWORD=%s\nBROWSER_WEB_PORT=3201\nBROWSER_CDP_PORT=9422\nBROWSER_STREAM_PORT=8182\nFIXTURE_PORT=3299\n' \
+            "$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > docker/.env.test
+      - run: npm run stack:test:up
+      - run: npm run test:integration
+      - name: Stack logs
+        if: failure()
+        run: docker compose -p sandboxed-browser-mcp-test --env-file docker/.env.test -f docker/compose.yaml -f docker/compose.test.yaml logs --tail 200
+      - name: Stop the stack
+        if: always()
+        run: npm run stack:test:down

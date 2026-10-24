@@ -1,0 +1,16 @@
+# Test-only override: a fixture web server the browser can reach by three fictional host
+# names on the project's own network (allowed.fixture.test, blocked.fixture.test, and
+# allowed.othersite.test, another site, so that its frames run out of process). It
+# is a container because a server on the host is not reachable from containers behind
+# a host firewall such as ufw's default. Its port is published on 127.0.0.1 only, for
+# the tests to read what it received.
+services:
+  fixture:
+    image: node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567
+    command: ["node", "/fixture/fixture-server.mjs"]
+    volumes: ["../test/integration/fixture-server.mjs:/fixture/fixture-server.mjs:ro"]
+    ports: ["127.0.0.1:${FIXTURE_PORT:-3299}:80"]
+    networks:
+      default:
+        aliases: [allowed.fixture.test, blocked.fixture.test, allowed.othersite.test]
+    restart: "no"

@@ -1,0 +1,213 @@
+{
+ "title": "Seed order",
+ "url": "http://allowed.fixture.test/form",
+ "metrics": {
+  "width": 1024,
+  "height": 644,
+  "scrollY": 0,
+  "scrollHeight": 644
+ },
+ "tree": [
+  {
+   "role": "generic",
+   "active": true,
+   "ref": "f1e1",
+   "box": {
+    "x": 8,
+    "y": 21,
+    "width": 1008,
+    "height": 312
+   },
+   "children": [
+    {
+     "role": "heading",
+     "name": "Seed order",
+     "level": 1,
+     "ref": "f1e2",
+     "box": {
+      "x": 8,
+      "y": 21,
+      "width": 1008,
+      "height": 43
+     }
+    },
+    {
+     "role": "generic",
+     "ref": "f1e3",
+     "box": {
+      "x": 8,
+      "y": 86,
+      "width": 1008,
+      "height": 210
+     },
+     "children": [
+      {
+       "role": "paragraph",
+       "ref": "f1e4",
+       "box": {
+        "x": 8,
+        "y": 86,
+        "width": 1008,
+        "height": 24
+       },
+       "children": [
+        "Name",
+        {
+         "role": "textbox",
+         "name": "Name",
+         "ref": "f1e5",
+         "box": {
+          "x": 57,
+          "y": 86,
+          "width": 206,
+          "height": 24
+         }
+        }
+       ]
+      },
+      {
+       "role": "paragraph",
+       "ref": "f1e6",
+       "box": {
+        "x": 8,
+        "y": 126,
+        "width": 1008,
+        "height": 23
+       },
+       "children": [
+        "Plan",
+        {
+         "role": "combobox",
+         "name": "Plan",
+         "ref": "f1e7",
+         "box": {
+          "x": 45,
+          "y": 127,
+          "width": 56,
+          "height": 22
+         },
+         "children": [
+          {
+           "role": "option",
+           "name": "Free",
+           "selected": true,
+           "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+           }
+          },
+          {
+           "role": "option",
+           "name": "Pro",
+           "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+           }
+          },
+          {
+           "role": "option",
+           "name": "Team",
+           "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+           }
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "role": "paragraph",
+       "ref": "f1e8",
+       "box": {
+        "x": 8,
+        "y": 165,
+        "width": 1008,
+        "height": 41
+       },
+       "children": [
+        "Notes",
+        {
+         "role": "textbox",
+         "name": "Notes",
+         "ref": "f1e9",
+         "box": {
+          "x": 56,
+          "y": 165,
+          "width": 182,
+          "height": 36
+         }
+        }
+       ]
+      },
+      {
+       "role": "textbox",
+       "name": "Gift message",
+       "ref": "f1e10",
+       "box": {
+        "x": 8,
+        "y": 222,
+        "width": 1008,
+        "height": 34
+       }
+      },
+      {
+       "role": "paragraph",
+       "ref": "f1e11",
+       "box": {
+        "x": 8,
+        "y": 272,
+        "width": 1008,
+        "height": 24
+       },
+       "children": [
+        {
+         "role": "button",
+         "name": "Send",
+         "ref": "f1e12",
+         "box": {
+          "x": 8,
+          "y": 272,
+          "width": 47,
+          "height": 24
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "role": "paragraph",
+     "ref": "f1e13",
+     "box": {
+      "x": 8,
+      "y": 312,
+      "width": 1008,
+      "height": 22
+     },
+     "children": [
+      {
+       "role": "link",
+       "name": "Seed catalogue",
+       "ref": "f1e14",
+       "cursor": "pointer",
+       "box": {
+        "x": 8,
+        "y": 312,
+        "width": 115,
+        "height": 22
+       },
+       "url": "/next"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

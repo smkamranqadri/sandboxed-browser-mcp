@@ -1,0 +1,56 @@
+# The sandboxed browser the MCP server drives: a Chromium in a container, a CDP relay
+# and a relay for the desktop's frame stream, with every published port bound to 127.0.0.1.
+#
+# Ports (host side) can be moved with BROWSER_WEB_PORT, BROWSER_CDP_PORT and
+# BROWSER_STREAM_PORT in docker/.env. Defaults: 3101, 9322, 8082.
+#
+# BROWSER_ALLOWED_HOSTS in docker/.env (the same list as the MCP server's) is written as
+# a Chromium policy by the `policy` service before the browser starts.
+name: sandboxed-browser-mcp
+services:
+  # Writes BROWSER_ALLOWED_HOSTS as the browser's managed policy (docker/policy.sh), and exits.
+  policy:
+    image: alpine/socat:1.8.1.1@sha256:7f9a06753033f2b7de18edc2353f2c15153413d95a039163c6db270fc7a6c3b0
+    entrypoint: ["sh", "/policy.sh"]
+    environment:
+      BROWSER_ALLOWED_HOSTS: "${BROWSER_ALLOWED_HOSTS:-}"
+      POLICY_DIR: /policies
+    volumes: ["./policy.sh:/policy.sh:ro", "policies:/policies"]
+    network_mode: none
+    restart: "no"
+  browser:
+    image: lscr.io/linuxserver/chromium:latest@sha256:f2d4b8b284918d8d65e10921e2fc84c57fd7edbc15345ddb3c024f0949f0031c
+    shm_size: "1gb"
+    security_opt: ["seccomp=unconfined"]
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      CUSTOM_USER: agent
+      PASSWORD: "${BROWSER_PASSWORD:?set BROWSER_PASSWORD in docker/.env}"
+      # BackForwardCache off, as Playwright launches Chromium: a page restored by "back" keeps refs the tools no longer know.
+      CHROME_CLI: "--remote-debugging-port=9222 --disable-features=BackForwardCache"
+    ports:
+      - "127.0.0.1:${BROWSER_WEB_PORT:-3101}:3001"
+      - "127.0.0.1:${BROWSER_CDP_PORT:-9322}:9223"
+      - "127.0.0.1:${BROWSER_STREAM_PORT:-8082}:8083"
+    volumes: ["profile:/config", "policies:/etc/chromium/policies/managed:ro"]
+    depends_on:
+      policy:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  # Chromium's debugging port listens on 127.0.0.1 inside the container only; this
+  # shares the container's network and re-exposes it on 9223 for the published port.
+  cdp-relay:
+    image: alpine/socat:1.8.1.1@sha256:7f9a06753033f2b7de18edc2353f2c15153413d95a039163c6db270fc7a6c3b0
+    network_mode: "service:browser"
+    command: ["TCP-LISTEN:9223,fork,reuseaddr", "TCP:127.0.0.1:9222"]
+    restart: unless-stopped
+  # Same for the desktop's frame stream, for a person watching; the MCP server does not use it.
+  stream-relay:
+    image: alpine/socat:1.8.1.1@sha256:7f9a06753033f2b7de18edc2353f2c15153413d95a039163c6db270fc7a6c3b0
+    network_mode: "service:browser"
+    command: ["TCP-LISTEN:8083,fork,reuseaddr", "TCP:127.0.0.1:8082"]
+    restart: unless-stopped
+volumes:
+  profile: {}
+  policies: {}
