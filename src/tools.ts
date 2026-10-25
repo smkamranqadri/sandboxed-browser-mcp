@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Browser, BrowserContext, Locator, Page, Request } from "playwright-core";
 import { cdpUrl } from "./cdp.js";
+import { ChooserCapture, settledChoosers } from "./chooser.js";
 import { link } from "./connection.js";
 import { Cursor, cursorEnabled } from "./cursor.js";
 import { ToolError } from "./errors.js";
@@ -10,12 +11,13 @@ import { ensureGuard, stopGuard, takeRefusals, type Refusal } from "./navguard.j
 import { checkRef, gone, refGoneError } from "./refs.js";
 import { SCHEMAS } from "./schema.js";
 import { channel, closed, exists, lastOpened } from "./tabs.js";
+import { prepareFiles, type PreparedFile } from "./upload.js";
 import { changes, describe, excerpt, findRef, fullText, render, search, type AriaNode, type Entry, type Line, type Metrics, type Shot } from "./view.js";
 
 export { ToolError, keyCombo };
 
 /**
- * The eleven browser tools. One server process is one session: it follows one tab of the browser (Chromium over CDP,
+ * The twelve browser tools. One server process is one session: it follows one tab of the browser (Chromium over CDP,
  * through Playwright), shows it as text (view.ts), acts on elements by the refs the view gives, and answers an action
  * with what it changed. With BROWSER_ALLOWED_HOSTS set it keeps the tab on those hosts: the guard (navguard.ts) fails
  * document requests to other hosts in the browser, and the tools judge every navigation and action by where the tab
@@ -37,25 +39,41 @@ export interface ToolDef {
 // ---- Calls that run past their time limit --------------------------------------------------------------------------
 
 const ABANDONED = "This call ran past its time limit and was abandoned.";
-const calls = new AsyncLocalStorage<{ abandoned: boolean }>();
+const calls = new AsyncLocalStorage<{ abandoned: boolean; onAbandon: Set<() => void> }>();
 
 /** Throws when the call this runs in was given up at its time limit: a tool checks it before each step in the browser. */
 export function stillWanted(): void {
   if (calls.getStore()?.abandoned) throw new ToolError(ABANDONED);
 }
 
+/** Whether the call this runs in is still wanted, without throwing. */
+const stillWantedNow = (): boolean => !calls.getStore()?.abandoned;
+
+/** Runs `fn` if the call this runs in is given up while it waits on something; returns what stops that. */
+function whenAbandoned(fn: () => void): () => void {
+  const call = calls.getStore();
+  call?.onAbandon.add(fn);
+  return () => void call?.onAbandon.delete(fn);
+}
+
 /**
  * Runs one call's work so that it can be given up: after `abandon()` its next step (`stillWanted()`) throws, so a late
- * call takes no further step in the browser, and its result is a failure even if it got to the end.
+ * call takes no further step in the browser, and its result is a failure even if it got to the end. The work starts
+ * once every file chooser capture of an earlier call, given up or not, is confirmed released (chooser.ts).
  */
 export function runCall<T>(work: () => Promise<T>): { result: Promise<T>; abandon: () => void } {
-  const call = { abandoned: false };
+  const call = { abandoned: false, onAbandon: new Set<() => void>() };
   const result = calls.run(call, async () => {
+    await settledChoosers();
     const value = await work();
     stillWanted();
     return value;
   });
-  return { result, abandon: () => void (call.abandoned = true) };
+  const abandon = () => {
+    call.abandoned = true;
+    for (const fn of call.onAbandon) fn();
+  };
+  return { result, abandon };
 }
 
 /** Lets go of the browser (it and its tabs stay) and stops the guard, as the server stops. */
@@ -68,6 +86,10 @@ export async function disconnect(): Promise<void> {
 
 /** How long an action waits for its element to be ready (enabled, visible, not covered). */
 const WAIT_ACTION = 10_000;
+/** How long after a click a file chooser it opens is still caught, at least (the capture stays armed while the page settles). */
+const CLICK_CHOOSER_MS = 1000;
+/** How long browser_upload waits after its click for the file chooser it is there for. */
+const UPLOAD_CHOOSER_MS = 2000;
 /** How long a navigation may take to load. */
 const WAIT_LOAD = 30_000;
 
@@ -263,6 +285,37 @@ function loadFailure(url: string, e: unknown): ToolError {
 
 const badAddress = (url: string) => new ToolError(`"${url}" is not a full address. Give one with its scheme, for example https://example.com/page.`);
 
+/** In the element's own document: the file input it is, or that it labels; null for anything else. */
+function fileInputOf(el: Element): Element | null {
+  const control = el.localName === "label" ? (el as HTMLLabelElement).control : el;
+  return control && control.localName === "input" && (control as HTMLInputElement).type === "file" ? control : null;
+}
+
+/** How a file input takes files. */
+function inputState(input: Element): { multiple: boolean; directory: boolean } {
+  return { multiple: (input as HTMLInputElement).multiple, directory: (input as HTMLInputElement).webkitdirectory };
+}
+
+/** Whether an element is still in its document. */
+function connectedNow(el: Element): boolean {
+  return el.isConnected;
+}
+
+const staleInput = (ref: string) => new ToolError(`The file input of ${ref} is no longer on the page: nothing was assigned. Take a new browser_snapshot.`);
+
+const folderPicker = (ref: string) => new ToolError(`${ref} picks a folder (webkitdirectory): folder upload is not supported, and nothing was assigned.`);
+const singleFile = (ref: string, count: number) => new ToolError(`${ref} takes one file, and ${count} were given: nothing was assigned, and it keeps what it had.`);
+const offListTab = (place: string) => `The tab is on ${place}, which is not an allowed host (BROWSER_ALLOWED_HOSTS): no files were sent to it.`;
+
+/** Refuses to send files to a tab off the allowed hosts. */
+function sendable(page: Page): void {
+  const place = offList(page.url());
+  if (place) throw new ToolError(offListTab(place));
+}
+
+/** The files attached, each with its full path and size. */
+const attached = (files: PreparedFile[]): string => files.map((f) => `${f.path} (${f.size.toLocaleString("en-US")} byte${f.size === 1 ? "" : "s"})`).join(", ");
+
 /** Roles one never types into: refused at once, from what the view showed. */
 const NOT_TYPABLE = new Set("button link checkbox radio switch option img slider tab menuitem menuitemcheckbox menuitemradio treeitem heading separator progressbar meter listbox".split(" "));
 
@@ -445,9 +498,10 @@ class Session {
   /**
    * One action on the followed tab. `action` does it; then the page is given a moment to settle, and the answer says
    * what changed on screen, or shows the page the tab went to, or the tab the action opened, or says that it was
-   * blocked and the tab put back.
+   * blocked and the tab put back. `settled`, when given, runs once the page has settled or the action failed or was
+   * given up, before anything else; `what` may be worked out only then, knowing whether the action opened a tab.
    */
-  async perform(what: string, action: (page: Page) => Promise<void>): Promise<string> {
+  async perform(what: string | ((opened: boolean) => string), action: (page: Page) => Promise<void>, settled?: () => Promise<void>): Promise<string> {
     const page = await this.usableTab();
     const own = channel(page);
     own.catch(() => {});
@@ -468,7 +522,9 @@ class Session {
       await calm(page);
     } finally {
       lookout.end();
+      await settled?.();
     }
+    if (typeof what === "function") what = what(lookout.opened.some((p) => p !== page && !p.isClosed()));
     void this.cursor.done(await this.pointer(page));
     stillWanted();
     const refusals = takeRefusals();
@@ -604,21 +660,153 @@ class Session {
     return this.show(page, mode);
   }
 
+  /**
+   * A click, with any file chooser it opens on this tab caught (no native dialog) and given no files, so that an earlier
+   * selection stays; the answer points to browser_upload instead.
+   */
   async click(given: string, double: boolean): Promise<string> {
     const ref = checkRef(given);
-    return this.perform(`${double ? "Double-clicked" : "Clicked"} ${ref}`, async (page) => {
-      const locator = await this.element(page, ref);
-      await this.aim(page, locator, this.label(page, double ? "Double-click" : "Click", ref));
-      stillWanted();
-      this.acting();
-      try {
-        if (double) await locator.dblclick({ timeout: WAIT_ACTION });
-        else await locator.click({ timeout: WAIT_ACTION });
-      } catch (e) {
-        throw actionFailure(e, ref, double ? "double-clicked" : "clicked");
-      }
-      void this.cursor.ripple(await this.pointer(page));
-    });
+    const done = `${double ? "Double-clicked" : "Clicked"} ${ref}`;
+    let capture: ChooserCapture | undefined;
+    let clickedAt = 0;
+    // Given up, the capture goes at once, not when a late click or the chooser window ends: the next call waits for it.
+    let stop = () => {};
+    const release = async () => {
+      if (!capture) return;
+      // Armed until the minimum window after the click is over, whatever was caught already.
+      if (stillWantedNow() && clickedAt) await capture.hold(clickedAt + CLICK_CHOOSER_MS - Date.now());
+      stop();
+      await capture.release();
+    };
+    const what = () =>
+      capture?.caught.length
+        ? `${done}, which opens a file chooser: it was caught, so no dialog opened and no file was chosen. To attach files, use browser_upload on ${ref}`
+        : done;
+    return this.perform(
+      what,
+      async (page) => {
+        const locator = await this.element(page, ref);
+        await this.aim(page, locator, this.label(page, double ? "Double-click" : "Click", ref));
+        stillWanted();
+        capture = await ChooserCapture.arm(page);
+        const armed = capture;
+        stop = whenAbandoned(() => void armed.release());
+        stillWanted();
+        this.acting();
+        try {
+          if (double) await locator.dblclick({ timeout: WAIT_ACTION });
+          else await locator.click({ timeout: WAIT_ACTION });
+        } catch (e) {
+          throw actionFailure(e, ref, double ? "double-clicked" : "clicked");
+        }
+        // The window counts from the click itself, not from before the wait for the element to be ready.
+        clickedAt = Date.now();
+        void this.cursor.ripple(await this.pointer(page));
+      },
+      release,
+    );
+  }
+
+  /**
+   * Files from this machine on a file input: the files read and checked first (upload.ts), so that a refusal touches
+   * nothing on the page. A file input, or a label for one, is given them directly; anything else is clicked once, with
+   * the file chooser it opens caught on this tab and given them.
+   */
+  async upload(given: string, files: unknown): Promise<string> {
+    const ref = checkRef(given);
+    const prepared = await prepareFiles(files, { wanted: stillWanted });
+    const payloads = prepared.map((f) => f.payload);
+    let capture: ChooserCapture | undefined;
+    let clickedAt = 0;
+    let stop = () => {};
+    let assigned = false;
+    // Refused once the click was made: said with what the click changed, as click would.
+    let refused: string | undefined;
+    const release = async () => {
+      stop();
+      await capture?.release();
+    };
+    const what = (opened: boolean) => {
+      if (refused) return `Clicked ${ref} to upload, and no files were sent: ${refused}`;
+      if (assigned || !capture) return `Uploaded to ${ref}: ${attached(prepared)}`;
+      return opened
+        ? `Clicked ${ref} to upload (no file chooser was caught on this page, upload capture does not reach other tabs, and no files were assigned)`
+        : `Clicked ${ref} to upload (it opened no file chooser, so no files were assigned; point browser_upload at the upload control itself: the file input, its label, or the button that opens the chooser)`;
+    };
+    return this.perform(
+      what,
+      async (page) => {
+        const locator = await this.element(page, ref);
+        stillWanted();
+        // The file input the ref is, or labels, as one handle: inspected and given the files, never looked up again (a
+        // label's association may change meanwhile). Playwright does not follow a label to its control itself.
+        const handle = await locator.evaluateHandle(fileInputOf, undefined, { timeout: WAIT_ACTION }).catch((e) => {
+          throw actionFailure(e, ref, "uploaded to");
+        });
+        try {
+          stillWanted();
+          const input = handle.asElement();
+          if (input) {
+            const target = await input.evaluate(inputState).catch((e) => {
+              throw actionFailure(e, ref, "uploaded to");
+            });
+            stillWanted();
+            await this.aim(page, locator, this.label(page, "Upload", ref));
+            if (target.directory) throw folderPicker(ref);
+            if (payloads.length > 1 && !target.multiple) throw singleFile(ref, payloads.length);
+            sendable(page);
+            this.acting();
+            if (!(await input.evaluate(connectedNow).catch(() => false))) throw staleInput(ref);
+            // A step may have outlasted the call, or the tab moved meanwhile: checked again right before sending.
+            stillWanted();
+            sendable(page);
+            await input.setInputFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
+              throw actionFailure(e, ref, "uploaded to");
+            });
+            assigned = true;
+            return;
+          }
+        } finally {
+          await handle.dispose().catch(() => {});
+        }
+        stillWanted();
+        await this.aim(page, locator, this.label(page, "Upload", ref));
+        capture = await ChooserCapture.arm(page);
+        const armed = capture;
+        stop = whenAbandoned(() => void armed.release());
+        stillWanted();
+        this.acting();
+        await locator.click({ timeout: WAIT_ACTION }).catch((e) => {
+          throw actionFailure(e, ref, "clicked");
+        });
+        // The window counts from the click itself, not from before the wait for the element to be ready.
+        clickedAt = Date.now();
+        void this.cursor.ripple(await this.pointer(page));
+        const chooser = await capture.first(clickedAt + UPLOAD_CHOOSER_MS - Date.now());
+        stillWanted();
+        if (!chooser) return;
+        if (payloads.length > 1 && !chooser.isMultiple()) {
+          refused = `the file chooser it opened takes one file, and ${payloads.length} were given, so it keeps what it had`;
+          return;
+        }
+        // Its input may be gone (a page that removes it once the chooser is open): files set on it reach no form.
+        if (!(await chooser.element().evaluate(connectedNow).catch(() => false))) {
+          refused = "the file input of the chooser it opened is no longer on the page";
+          return;
+        }
+        const place = offList(chooser.page().url());
+        if (place) {
+          refused = `the chooser's tab is on ${place}, which is not an allowed host (BROWSER_ALLOWED_HOSTS)`;
+          return;
+        }
+        stillWanted();
+        await chooser.setFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
+          throw actionFailure(e, ref, "uploaded to");
+        });
+        assigned = true;
+      },
+      release,
+    );
   }
 
   async type(given: string, text: string, submit: boolean): Promise<string> {
@@ -903,6 +1091,12 @@ export function browserTools(sessionId: string): ToolDef[] {
       async (a) => ({ content: [await session.screenshot(a.ref === undefined ? undefined : asString(a.ref))] }),
       true,
     ),
+    tool(
+      "browser_upload",
+      "Upload",
+      "Attaches files from this machine to a file input by ref: the input, its label, or the button that opens its file chooser. Use it instead of clicking a file input. Paths are absolute or ~/, inside the server's home; credential, key, history and browser-profile files are refused. Reports each file attached and the changes on screen.",
+      async (a) => asText(await session.upload(asString(a.ref), a.files)),
+    ),
   ];
 }
 
@@ -916,5 +1110,6 @@ export function instructions(defs: ToolDef[]): string {
     "A ref (e12, f2e7) is only valid as browser_snapshot or browser_find gave it: use those, and never guess one.",
     "Use browser_get_text to read long text, not scrolling or screenshots, and browser_find to locate something anywhere on the page.",
     "Use browser_screenshot only when layout, images or a canvas matter.",
+    "To attach files to a page, use browser_upload on its upload control rather than clicking it.",
   ].join("\n");
 }

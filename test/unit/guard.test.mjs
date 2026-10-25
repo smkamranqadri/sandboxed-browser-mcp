@@ -122,17 +122,36 @@ test("arguments are checked against the tool's schema", () => {
   assert.equal(validateArgs({ type: "object", properties: {} }, undefined), null);
 });
 
-test("the eleven tools keep their names, and the server's rules reach the model", () => {
+test("an array argument must be a non-empty array of strings; the scalar messages stay as they were", () => {
+  const schema = { type: "object", required: ["ref", "files"], properties: { ref: { type: "string" }, files: { type: "array", items: { type: "string" }, minItems: 1 } } };
+  assert.equal(validateArgs(schema, { ref: "e1", files: ["~/notes/plan.txt"] }), null);
+  assert.equal(validateArgs(schema, { ref: "e1", files: ["~/a.txt", "/home/sample/b.png"] }), null);
+  assert.equal(validateArgs(schema, { ref: "e1" }), 'Missing argument "files".');
+  assert.equal(validateArgs(schema, { ref: "e1", files: [] }), 'Argument "files" must have at least 1 item.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: "x" }), 'Argument "files" must be an array of strings.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: { 0: "x" } }), 'Argument "files" must be an array of strings.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: [1] }), 'Argument "files[0]" must be a string.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: ["~/a.txt", null] }), 'Argument "files[1]" must be a string.');
+  assert.equal(validateArgs(schema, { ref: 3, files: ["~/a.txt"] }), 'Argument "ref" must be a string.');
+});
+
+test("the twelve tools keep their names, and the server's rules reach the model", () => {
   const defs = browserTools("t");
   assert.deepEqual(
     defs.map((d) => d.name),
-    ["browser_navigate", "browser_back", "browser_snapshot", "browser_click", "browser_type", "browser_select", "browser_key", "browser_scroll", "browser_find", "browser_get_text", "browser_screenshot"],
+    ["browser_navigate", "browser_back", "browser_snapshot", "browser_click", "browser_type", "browser_select", "browser_key", "browser_scroll", "browser_find", "browser_get_text", "browser_screenshot", "browser_upload"],
   );
   for (const d of defs) assert.equal(d.inputSchema.type, "object", d.name);
+  // Only browser_upload's files is an array, of strings and never empty; no other property carries items or minItems.
+  const lists = defs.flatMap((d) => Object.entries(d.inputSchema.properties).filter(([, v]) => v.type === "array" || "items" in v || "minItems" in v).map(([k, v]) => [d.name, k, v.type, v.items, v.minItems]));
+  assert.deepEqual(lists, [["browser_upload", "files", "array", { type: "string" }, 1]]);
+  assert.deepEqual(defs.at(-1).inputSchema.required, ["ref", "files"]);
+  assert.equal(defs.at(-1).readOnly, undefined);
   const text = instructions(defs);
   assert.match(text, /answer with what changed/);
   assert.match(text, /never guess one/);
   assert.match(text, /<untrusted-web-content>/);
   assert.match(text, /browser_get_text to read long text/);
   assert.match(text, /browser_screenshot only when layout/);
+  assert.match(text, /^To attach files to a page, use browser_upload on its upload control rather than clicking it\.$/m);
 });

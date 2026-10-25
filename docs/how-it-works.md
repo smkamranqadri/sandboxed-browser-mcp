@@ -9,7 +9,7 @@
 - **The browser**: Chromium in a Docker container (`docker/compose.yaml`), with a desktop you can watch and use at
   `https://127.0.0.1:3101`. Its debugging protocol (CDP) is published on `127.0.0.1` only, through a small relay.
 - **The server**: a stdio MCP server (`dist/server.js`) that your agent starts. It connects to the browser over CDP
-  with Playwright and offers eleven tools. One server process is one session, following one tab.
+  with Playwright and offers twelve tools. One server process is one session, following one tab.
 
 ## A call
 
@@ -40,6 +40,7 @@ again, gets one answer saying so.
 | `browser_find` | finds elements anywhere on the page by their words, with refs to act on directly |
 | `browser_get_text` | reads a section's full text, in pages |
 | `browser_screenshot` | a JPEG, for when layout, images or a canvas matter |
+| `browser_upload` | gives a file input files from this machine, through the input, its label or its chooser |
 
 The actions answer with what changed on screen since the agent last looked (`~ old  →  new`, `+ appeared`,
 `- gone`), or with the new page if they navigated, or the new tab if they opened one (the session then follows that
@@ -47,11 +48,21 @@ tab), so the agent rarely needs another snapshot. A scroll names what stayed pin
 it, and says when it is already at the top or bottom. Refs come only from a snapshot or a find; a ref whose element is
 gone is refused.
 
+## Uploads
+
+`browser_upload` reads the files on the host, under the server's home only and minus a denylist of credential, key,
+history and browser-profile files, and Playwright sends their bytes into the page over CDP: no folder is mounted into
+the container, and its own file dialog is never used. A file input, or a label for one, is given the files directly.
+Anything else is clicked once, with the file chooser it opens on the followed tab caught (no dialog appears) and given
+the files. `browser_click` catches choosers the same way during its own click, gives them nothing, and answers that
+the element opens a file chooser and to use `browser_upload` on it. Choosers outside those moments, opened by a key, a
+script or a person, keep the native dialog. The rules are in [Security](security.md).
+
 ## The cursor
 
 An arrow drawn into the page glides to each target before an action (about a third of a second, with a faint dotted
 trail), with a dark label below it saying what is happening: `Click · Save`, `Type · Name` (the field, never the text
-typed), `Choose · Pro`, `Scroll down`, `Press · Enter`. A click sends a ring out from the tip, and a caret blinks
+typed), `Choose · Pro`, `Scroll down`, `Press · Enter`, `Upload · Seed list`. A click sends a ring out from the tip, and a caret blinks
 beside it while it types. You can follow along at `https://127.0.0.1:3101`, and it is in screenshots. On a new page it appears again where
 it was.
 
@@ -89,7 +100,9 @@ role-markup, hidden, secret-request), a `WARNING:` line naming it comes first.
 ```
 install.sh         install, check, update, uninstall
 src/server.ts      MCP server (stdio), call queue, envelope
-src/tools.ts       the eleven tools, the session (the followed tab), allowlist checks of the tab, call abandonment
+src/tools.ts       the twelve tools, the session (the followed tab), allowlist checks of the tab, call abandonment
+src/upload.ts      the files of an upload: the path rules, read through one checked handle, as bytes for Playwright
+src/chooser.ts     file chooser capture during the agent's own click, released (confirmed) before the next call
 src/connection.ts src/tabs.ts   the Playwright connection; each tab's CDP session, which tabs are gone, the newest tab
 src/view.ts        the page as text: the view, what changed, find, full text in pages
 src/refs.ts src/keys.ts src/schema.ts src/errors.ts src/cdp.ts   refs, key names, argument schemas, ToolError, CDP address

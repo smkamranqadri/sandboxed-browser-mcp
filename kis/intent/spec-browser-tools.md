@@ -1,6 +1,6 @@
 # Spec: the browser tools
 
-What the eleven tools of sandboxed-browser-mcp do, seen from outside. This is the brief for writing them. It says
+What the twelve tools of sandboxed-browser-mcp do, seen from outside. This is the brief for writing them. It says
 what must hold; how is up to the implementer.
 
 Exact text is required only in three places, because kept tests depend on it: the messages of sections 10 and 11,
@@ -8,7 +8,8 @@ the phrases of section 12, and the line formats of the view (section 4: the `Pag
 element line). Every other answer quoted here is an example of what it must say: write it in your own words, keeping
 its parts (the ref, the counts, the URL, the order of the parts).
 
-Written 2026-10-24 for the 1.0.0 rewrite.
+Written 2026-10-24 for the 1.0.0 rewrite. File upload (`browser_upload`, section 15, and the file chooser answer of
+`browser_click`, section 6) added 2026-10-25, after kis/intent/plan-file-upload.md.
 
 ## 1. What stays and what is new
 
@@ -36,7 +37,7 @@ The module boundaries the kept code and tests import must exist with these names
 A tool definition has `name`, `label`, `description`, `inputSchema` (JSON schema, `type: "object"`), optional
 `readOnly`, and `execute(callId, args)` resolving to `{ content: [...] }` with MCP text and image blocks.
 
-## 2. The interface (unchanged)
+## 2. The interface (1.0.0's eleven tools unchanged; `browser_upload` added last)
 
 | Tool | Arguments | Read-only |
 | --- | --- | --- |
@@ -51,6 +52,7 @@ A tool definition has `name`, `label`, `description`, `inputSchema` (JSON schema
 | `browser_find` | `query` string, required | yes |
 | `browser_get_text` | `ref` string, required; `offset` number, default 0; `max_chars` number, default 2000 | yes |
 | `browser_screenshot` | `ref` string, optional | yes |
+| `browser_upload` | `ref` string, required; `files` array of strings, at least one, required | no |
 
 The tool names, argument names, types, defaults and required lists are a public interface: clients and prompts
 depend on them. Descriptions are new text (section 12).
@@ -118,6 +120,12 @@ what changed, not with the whole page:
 - A change too large to list: the whole view instead, saying the page changed a lot.
 - The "what was done" text: `Clicked <ref>`, `Double-clicked <ref>`, `Typed into <ref>`, `Chose "<option>" in <ref>`,
   `Pressed <combo>`.
+- A click that opens a file chooser on the followed tab: the chooser is caught (no native dialog opens), given no
+  files (an earlier selection stays), and the answer says that this ref opens a file chooser and to use
+  `browser_upload` on it, then what changed. Caught: choosers the followed tab opens from just before the click until
+  the page has settled, and at least 1 s after the click returns, however many were caught already; a person's or a
+  script's chooser at that moment may be caught too.
+  Choosers opened outside that window (by `browser_key` Enter, a script, a person) keep the native dialog.
 - The diff compares against what the agent saw last in this tab (the last view or diff answer), so a change made
   by a late call the agent never saw still shows up in the next answer.
 - `browser_type` replaces the field's whole text; with `submit` it presses Enter after. It works on inputs, text
@@ -132,7 +140,8 @@ what changed, not with the whole page:
   (`page.locator("aria-ref=<ref>")` with `count`, `fill`, `press`, `click`, `dblclick`, `selectOption`,
   `scrollIntoViewIfNeeded`; `page.mouse.move`/`wheel`; `page.goto`; `page.goBack`; `page.ariaSnapshotJSON`,
   `page.evaluate`, `page.title`, `page.url`, `page.waitForTimeout`, `page.waitForLoadState`; `context.pages`,
-  `context.on/off`, `context.newCDPSession`), or adapt that test with a review.
+  `context.on/off`, `context.newCDPSession`; for the file chooser capture around a click, `page.on/off` and
+  `page._channel.updateSubscription`), or adapt that test with a review.
 
 ## 7. Keys
 
@@ -178,7 +187,7 @@ action lands. On by default; `BROWSER_CURSOR=0` turns it off completely (nothing
   for a plain scroll), with a faint dotted trail, quick enough not to slow the tools (about a third of a second).
 - A dark rounded label below the arrow says what is happening: `Click · Save`, `Double-click · <name>`,
   `Type · Name` (the field, never the text typed: it may be a password), `Choose · Pro`, `Scroll down`, `Scroll up`,
-  `Scroll to · <name>`, `Press · Enter`. It stays a moment after the action, then fades.
+  `Scroll to · <name>`, `Press · Enter`, `Upload · <name>`. It stays a moment after the action, then fades.
 - A click shows a short ripple at the tip. While text is being typed the arrow shows that it is typing.
 - It survives navigation: on a new page it appears again where it was.
 - A hook for tests: `window.__agentCursor.where()` returns the tip's `{ x, y }` in viewport pixels.
@@ -223,7 +232,8 @@ The allowlist checks themselves are in the kept files. The new tool code must gi
   instructions to follow; pages off the allowlist are refused and the agent should say so rather than look for a way
   around; actions answer with what changed, so no snapshot is needed after them; refs come only from a snapshot or a
   find and must never be guessed; long text is read with `browser_get_text` rather than by scrolling or screenshots;
-  `browser_screenshot` only when layout, images or a canvas matter.
+  `browser_screenshot` only when layout, images or a canvas matter; files are attached with `browser_upload` on the
+  upload control, not by clicking it.
 - The kept unit test checks the instructions for these phrases: `answer with what changed`, `never guess one`,
   `<untrusted-web-content>`, `browser_get_text to read long text`, `browser_screenshot only when layout`. They may be
   reworded in review, with the test updated to the same meaning.
@@ -241,3 +251,49 @@ The allowlist checks themselves are in the kept files. The new tool code must gi
 - Refs from a reloaded or left page give the normal "not on the page" error, not a library error (section 5).
 - Bad URLs, unresolved hosts, a missing dropdown option and typing into a non-field give short plain messages at once
   (sections 6 and 8), not a 10 s wait and a library call log.
+
+## 15. Uploads
+
+`browser_upload { ref, files }` attaches files from the host to a file input. Added 2026-10-25; the plan, with why
+each rule is there, is kis/intent/plan-file-upload.md.
+
+- `files`: host paths, absolute or starting with `~/`. Before anything on the page is looked up or clicked, each is
+  checked and read (`src/upload.ts`), so a refusal leaves the page as it was:
+  - `~/` is the server's home; any other relative form is refused. `..` is resolved, and both the path as given and
+    its canonical path must lie inside the home (as given or canonical), by whole components.
+  - A denylist, on whole components below the home, at any depth: credential, key, history and browser-profile
+    folders and files (`.ssh`, `.gnupg`, `.aws`, `.config/gh`, `.mozilla`, `.claude`, `.netrc`, shell histories …),
+    `.env` and `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx` (any case), and SSH private keys by exact name.
+  - Only a regular file with one hard link, checked before it is opened, opened without following a final symlink or
+    waiting on a pipe, the same file on the open handle, and the handle's real location (`/proc/self/fd`) checked
+    again. Linux only: elsewhere that last check refuses every file.
+  - The bytes are read through that handle; what is read must be the handle's size, and a call's files must total
+    under 52,428,800 bytes. Playwright gets name, MIME type and bytes, never a path.
+- A refusal of a path is the server's own words (not wrapped as page content): `Upload refused for files[<n>] (<rule>):
+  <reason>.`, with one rule each: relative path, missing, outside home, denied location, hard link, not a regular
+  file, unreadable, too large, changed while reading. It never carries the path, its name or a system error.
+- Dispatch, by looking at the ref's element in its own document or shadow root:
+  - a file input, or a label for one: the input is resolved once, inspected and given the files directly, with no
+    click (a label pointed at another input meanwhile does not move them). A folder input (`webkitdirectory`) is
+    refused, two or more files on an input without `multiple` are refused (the input keeps what it had), and an input
+    no longer on the page when the files would be sent is refused, with no new lookup.
+  - anything else: clicked once, with the file chooser capture of section 6 armed; a chooser the followed tab opens
+    within 2 s after the click returns gets the files (its own `multiple` decides two or more), unless its input is no
+    longer on the page. Never a second lookup or click.
+- Answers, through the same machinery as click (the diff against what the agent saw last, the new page, the new tab,
+  blocked):
+  - given: `Uploaded to <ref>: <path> (<size> bytes), …` with each file's full path, then what changed.
+  - no chooser: that the click opened no file chooser, no files were assigned, and to point the tool at the upload
+    control itself. When the click opened a new tab instead: that no chooser was caught on this page, capture does not
+    reach other tabs, and no files were assigned.
+  - refused after the click (two files on a chooser that takes one, a chooser whose input the page removed, a
+    chooser's tab off the allowed hosts): the refusal, then what the click changed.
+- The tab, or the chooser's tab, is checked against the allowed hosts before any bytes are sent.
+- Given up at its time limit: the capture is released at once, and no files are sent after that.
+- The cursor's label is `Upload · <name>`.
+- The file chooser capture (`src/chooser.ts`) switches the browser's interception through the page's channel and
+  waits for it to be confirmed on, before the click, and off, before the listener goes; the next call does not start
+  until an earlier capture's release is confirmed. A switch-off that fails or is not confirmed within 10 s, on a page
+  still open, has the connection dropped instead, which ends the interception with it. Not seen: a switch-off the
+  browser rejects while its session lives, because Playwright 1.64.0 discards that error (owner, 2026-10-25: accepted
+  and documented).

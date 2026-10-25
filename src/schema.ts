@@ -1,9 +1,12 @@
 /**
- * The tools' argument schemas: small JSON schemas (string, number, boolean, enum; a required list) that the server
- * checks itself (validate.ts) and lists to clients. Names, types, defaults and required lists are a public interface.
+ * The tools' argument schemas: small JSON schemas (string, number, boolean, enum, a non-empty array of strings; a
+ * required list) that the server checks itself (validate.ts) and lists to clients. Names, types, defaults and required
+ * lists are a public interface.
  */
 
-type Field = { type: "string" | "number" | "boolean"; description: string; enum?: string[]; default?: unknown };
+type Scalar = { type: "string" | "number" | "boolean"; description: string; enum?: string[]; default?: unknown };
+type List = { type: "array"; items: { type: "string" }; minItems: 1; description: string };
+type Field = Scalar | List;
 
 export type Schema = {
   type: "object";
@@ -75,4 +78,17 @@ export const SCHEMAS = {
     "ref",
   ),
   browser_screenshot: params({ ref: refField("one element to picture; leave it out for the whole viewport") }),
+  browser_upload: params(
+    {
+      ref: refField("the file input, its label, or the button that opens its file chooser"),
+      files: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        description: "The files to attach, as paths on this machine inside the server's home: absolute, or starting with ~/.",
+      },
+    },
+    "ref",
+    "files",
+  ),
 } satisfies Record<string, Schema>;
