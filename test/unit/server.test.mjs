@@ -34,9 +34,9 @@ const call = async (args) => {
   return { isError: result.isError === true, text: result.content.map((c) => c.text).join("\n") };
 };
 
-test("the server lists an array argument with its items and minItems, after the eleven tools", async () => {
+test("the server lists an array argument with its items and minItems, after the twelve tools", async () => {
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name), ["browser_navigate", "browser_back", "browser_snapshot", "browser_click", "browser_type", "browser_select", "browser_key", "browser_scroll", "browser_find", "browser_get_text", "browser_screenshot", "test_list"]);
+  assert.deepEqual(tools.map((t) => t.name), ["browser_navigate", "browser_back", "browser_snapshot", "browser_click", "browser_type", "browser_select", "browser_key", "browser_scroll", "browser_find", "browser_get_text", "browser_screenshot", "browser_upload", "test_list"]);
   const list = tools.at(-1).inputSchema;
   assert.deepEqual(list.properties.files, { type: "array", items: { type: "string" }, minItems: 1, description: "Paths." });
   assert.deepEqual(list.required, ["ref", "files"]);

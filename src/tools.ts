@@ -11,6 +11,7 @@ import { ensureGuard, stopGuard, takeRefusals, type Refusal } from "./navguard.j
 import { checkRef, gone, refGoneError } from "./refs.js";
 import { SCHEMAS } from "./schema.js";
 import { channel, closed, exists, lastOpened } from "./tabs.js";
+import { prepareFiles, type PreparedFile } from "./upload.js";
 import { changes, describe, excerpt, findRef, fullText, render, search, type AriaNode, type Entry, type Line, type Metrics, type Shot } from "./view.js";
 
 export { ToolError, keyCombo };
@@ -87,6 +88,8 @@ export async function disconnect(): Promise<void> {
 const WAIT_ACTION = 10_000;
 /** How long after a click a file chooser it opens is still caught, at least (the capture stays armed while the page settles). */
 const CLICK_CHOOSER_MS = 1000;
+/** How long browser_upload waits after its click for the file chooser it is there for. */
+const UPLOAD_CHOOSER_MS = 2000;
 /** How long a navigation may take to load. */
 const WAIT_LOAD = 30_000;
 
@@ -283,6 +286,27 @@ function loadFailure(url: string, e: unknown): ToolError {
 const badAddress = (url: string) => new ToolError(`"${url}" is not a full address. Give one with its scheme, for example https://example.com/page.`);
 
 /** Roles one never types into: refused at once, from what the view showed. */
+/** In the element's own document: the file input it is, or labels, with how it takes files; null for anything else. */
+function fileInputOf(el: Element): { multiple: boolean; directory: boolean } | null {
+  const control = el.localName === "label" ? (el as HTMLLabelElement).control : el;
+  if (!control || control.localName !== "input" || (control as HTMLInputElement).type !== "file") return null;
+  const input = control as HTMLInputElement;
+  return { multiple: input.multiple, directory: input.webkitdirectory };
+}
+
+const folderPicker = (ref: string) => new ToolError(`${ref} picks a folder (webkitdirectory): folder upload is not supported, and nothing was assigned.`);
+const singleFile = (ref: string, count: number, chooser = false) =>
+  new ToolError(`${chooser ? `The file chooser ${ref} opened` : ref} takes one file, and ${count} were given: nothing was assigned, and it keeps what it had.`);
+
+/** Refuses to send files to a tab off the allowed hosts. */
+function sendable(page: Page): void {
+  const place = offList(page.url());
+  if (place) throw new ToolError(`The tab is on ${place}, which is not an allowed host (BROWSER_ALLOWED_HOSTS): no files were sent to it.`);
+}
+
+/** The files attached, each with its full path and size. */
+const attached = (files: PreparedFile[]): string => files.map((f) => `${f.path} (${f.size.toLocaleString("en-US")} byte${f.size === 1 ? "" : "s"})`).join(", ");
+
 const NOT_TYPABLE = new Set("button link checkbox radio switch option img slider tab menuitem menuitemcheckbox menuitemradio treeitem heading separator progressbar meter listbox".split(" "));
 
 // ---- Elements that stayed put during a scroll ----------------------------------------------------------------------
@@ -465,9 +489,9 @@ class Session {
    * One action on the followed tab. `action` does it; then the page is given a moment to settle, and the answer says
    * what changed on screen, or shows the page the tab went to, or the tab the action opened, or says that it was
    * blocked and the tab put back. `settled`, when given, runs once the page has settled or the action failed or was
-   * given up, before anything else; `what` may be worked out only then.
+   * given up, before anything else; `what` may be worked out only then, knowing whether the action opened a tab.
    */
-  async perform(what: string | (() => string), action: (page: Page) => Promise<void>, settled?: () => Promise<void>): Promise<string> {
+  async perform(what: string | ((opened: boolean) => string), action: (page: Page) => Promise<void>, settled?: () => Promise<void>): Promise<string> {
     const page = await this.usableTab();
     const own = channel(page);
     own.catch(() => {});
@@ -490,7 +514,7 @@ class Session {
       lookout.end();
       await settled?.();
     }
-    if (typeof what === "function") what = what();
+    if (typeof what === "function") what = what(lookout.opened.some((p) => p !== page && !p.isClosed()));
     void this.cursor.done(await this.pointer(page));
     stillWanted();
     const refusals = takeRefusals();
@@ -667,6 +691,76 @@ class Session {
           throw actionFailure(e, ref, double ? "double-clicked" : "clicked");
         }
         void this.cursor.ripple(await this.pointer(page));
+      },
+      release,
+    );
+  }
+
+  /**
+   * Files from this machine on a file input: the files read and checked first (upload.ts), so that a refusal touches
+   * nothing on the page. A file input, or a label for one, is given them directly; anything else is clicked once, with
+   * the file chooser it opens caught on this tab and given them.
+   */
+  async upload(given: string, files: unknown): Promise<string> {
+    const ref = checkRef(given);
+    const prepared = await prepareFiles(files, { wanted: stillWanted });
+    const payloads = prepared.map((f) => f.payload);
+    let capture: ChooserCapture | undefined;
+    let clickedAt = 0;
+    let stop = () => {};
+    let assigned = false;
+    const release = async () => {
+      stop();
+      await capture?.release();
+    };
+    const what = (opened: boolean) => {
+      if (assigned || !capture) return `Uploaded to ${ref}: ${attached(prepared)}`;
+      return opened
+        ? `Clicked ${ref} to upload (no file chooser was caught on this page, upload capture does not reach other tabs, and no files were assigned)`
+        : `Clicked ${ref} to upload (it opened no file chooser, so no files were assigned; point browser_upload at the upload control itself: the file input, its label, or the button that opens the chooser)`;
+    };
+    return this.perform(
+      what,
+      async (page) => {
+        const locator = await this.element(page, ref);
+        stillWanted();
+        const target = await locator.evaluate(fileInputOf, undefined, { timeout: WAIT_ACTION }).catch((e) => {
+          throw actionFailure(e, ref, "uploaded to");
+        });
+        stillWanted();
+        await this.aim(page, locator, this.label(page, "Upload", ref));
+        if (target) {
+          if (target.directory) throw folderPicker(ref);
+          if (payloads.length > 1 && !target.multiple) throw singleFile(ref, payloads.length);
+          sendable(page);
+          stillWanted();
+          this.acting();
+          await locator.setInputFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
+            throw actionFailure(e, ref, "uploaded to");
+          });
+          assigned = true;
+          return;
+        }
+        capture = await ChooserCapture.arm(page);
+        const armed = capture;
+        stop = whenAbandoned(() => void armed.release());
+        stillWanted();
+        this.acting();
+        clickedAt = Date.now();
+        await locator.click({ timeout: WAIT_ACTION }).catch((e) => {
+          throw actionFailure(e, ref, "clicked");
+        });
+        void this.cursor.ripple(await this.pointer(page));
+        const chooser = await capture.first(clickedAt + UPLOAD_CHOOSER_MS - Date.now());
+        stillWanted();
+        if (!chooser) return;
+        if (payloads.length > 1 && !chooser.isMultiple()) throw singleFile(ref, payloads.length, true);
+        sendable(chooser.page());
+        stillWanted();
+        await chooser.setFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
+          throw actionFailure(e, ref, "uploaded to");
+        });
+        assigned = true;
       },
       release,
     );
@@ -954,6 +1048,12 @@ export function browserTools(sessionId: string): ToolDef[] {
       async (a) => ({ content: [await session.screenshot(a.ref === undefined ? undefined : asString(a.ref))] }),
       true,
     ),
+    tool(
+      "browser_upload",
+      "Upload",
+      "Attaches files from this machine to a file input by ref: the input, its label, or the button that opens its file chooser. Use it instead of clicking a file input. Paths are absolute or ~/, inside the server's home; credential, key, history and browser-profile files are refused. Reports each file attached and the changes on screen.",
+      async (a) => asText(await session.upload(asString(a.ref), a.files)),
+    ),
   ];
 }
 
@@ -967,5 +1067,6 @@ export function instructions(defs: ToolDef[]): string {
     "A ref (e12, f2e7) is only valid as browser_snapshot or browser_find gave it: use those, and never guess one.",
     "Use browser_get_text to read long text, not scrolling or screenshots, and browser_find to locate something anywhere on the page.",
     "Use browser_screenshot only when layout, images or a canvas matter.",
+    "To attach files to a page, use browser_upload on its upload control rather than clicking it.",
   ].join("\n");
 }

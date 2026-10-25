@@ -169,6 +169,18 @@ ${Array.from({ length: 80 }, (_, i) => `<p style="margin:0;padding:8px 0">Ledger
 
   "/hang": () => page("Hang", `<h1>Hang</h1><script>for (;;) {}</script>`),
 
+  // A visible file input with a label; the page lists the files it holds, by name and size, and counts clicks on it.
+  "/upload-visible": () =>
+    page(
+      "Seed list",
+      `<h1>Seed list</h1><label for="list">Seed list file</label> <input type="file" id="list"><p>Files: <span id="files">none</span></p><p>Clicks: <span id="clicks">0</span></p>`,
+      `<script>addEventListener("DOMContentLoaded", () => {
+  const list = document.getElementById("list");
+  list.addEventListener("click", () => (document.getElementById("clicks").textContent = String(Number(document.getElementById("clicks").textContent) + 1)));
+  list.addEventListener("change", () => (document.getElementById("files").textContent = [...list.files].map((f) => \`\${f.name} \${f.size}\`).join(", ") || "none"));
+});</script>`,
+    ),
+
   // A button that opens the chooser of a hidden file input; the page counts the clicks, the files the input holds and
   // the times a chooser was dismissed (a native dialog closed with Escape fires "cancel"; a caught chooser does not).
   "/chooser": () =>
