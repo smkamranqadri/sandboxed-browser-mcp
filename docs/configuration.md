@@ -57,7 +57,7 @@ codex mcp add browser --env 'BROWSER_ALLOWED_HOSTS=docs.example.com,*.example.or
 # Claude Code (-s user: in every project, not only the current one)
 claude mcp add -s user browser -e BROWSER_ALLOWED_HOSTS='docs.example.com,*.example.org' -- node "$PWD/dist/server.js"
 
-# pi (its default exposure is "codemode"; --exposure direct lists the eleven tools as they are)
+# pi (its default exposure is "codemode"; --exposure direct lists the twelve tools as they are)
 pi mcp add browser --exposure direct --env BROWSER_ALLOWED_HOSTS='docs.example.com,*.example.org' -- node "$PWD/dist/server.js"
 ```
 

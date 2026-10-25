@@ -30,6 +30,19 @@ What sandboxed-browser-mcp protects, and what it does not. To report a problem, 
   host; workers' own requests; a policy that does not match the server's list (they are set in two places); or other
   CDP clients. It matches host names, not IPs behind them (DNS rebinding is not addressed). Do not treat it as a
   security boundary.
+- **Uploads read files on this machine.** `browser_upload` takes host paths, and only regular files inside the
+  server's own home: everything else on the host (`/etc`, `/proc`, `/tmp`, other users' homes, mounted drives) is
+  refused. Below the home, a denylist refuses credential, key, history and browser-profile locations (`.ssh`, `.gnupg`,
+  `.aws`, `.kube`, `.docker`, `.config/gh`, `.password-store`, keyrings, Firefox, Chrome and Brave profiles, `.claude`,
+  `.codex`, this install's own folder, `.netrc`, `.npmrc`, `.git-credentials`, shell and REPL histories), `.env` and
+  `.env.*` files, `*.pem`, `*.key`, `*.p12`, `*.pfx`, and SSH private keys by name. A file with more than one hard link
+  is refused (a hard link to a denied file would otherwise look like any other). The path is checked as given and
+  canonical, the file is read through one handle that is checked again where it really is, and Playwright gets the
+  bytes, not a path. A refusal names the rule and the argument's position, never the path. Not covered: a secret in an
+  ordinary file (a token in `~/notes.txt`) or under a path the denylist does not know; a file rewritten in place,
+  keeping its size, while it is read; the denylist is a filter, not a wall; and once the page has the bytes, its
+  scripts may send them to any host (sub-resources are not fenced, above). Linux only: the location check reads
+  `/proc/self/fd`, and on other systems every upload is refused.
 - **Revoke:** `install.sh uninstall --purge`, or `docker compose -f docker/compose.yaml down -v` for a manual setup,
   deletes the container *and* its profile volume (cookies, logins). Without `--purge` / `-v` the profile is kept.
 - The browser runs with `seccomp=unconfined` and `--no-sandbox` (the image's defaults for Chromium inside a container).

@@ -1,7 +1,7 @@
 {
   "name": "sandboxed-browser-mcp",
   "version": "1.0.0",
-  "description": "A standalone stdio MCP server that drives a sandboxed Chromium container over CDP: eleven browser tools sized for a model, with a host allowlist and untrusted-content envelope",
+  "description": "A standalone stdio MCP server that drives a sandboxed Chromium container over CDP: twelve browser tools sized for a model, with a host allowlist and untrusted-content envelope",
   "type": "module",
   "license": "MIT",
   "author": "Muhammad Kamran",

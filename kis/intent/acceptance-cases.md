@@ -11,9 +11,10 @@ the case checks its parts and meaning (the ref, the counts, the URL, which outco
 
 ## Interface
 
-1. `tools/list` returns exactly the eleven tools in this order: navigate, back, snapshot, click, type, select, key,
-   scroll, find, get_text, screenshot (all `browser_`-prefixed), with the argument names, types, required lists and
-   enums of spec section 2; `readOnlyHint` true for snapshot, find, get_text, screenshot only.
+1. `tools/list` returns exactly the twelve tools in this order: navigate, back, snapshot, click, type, select, key,
+   scroll, find, get_text, screenshot, upload (all `browser_`-prefixed), with the argument names, types, required
+   lists and enums of spec section 2; `readOnlyHint` true for snapshot, find, get_text, screenshot only. (Amended
+   2026-10-25 with the owner: eleven became twelve, `browser_upload` last; see case 42.)
 2. Argument errors answer at once with the validator's messages: missing `url`, `url` 42, `screens` "two",
    `direction` "sideways", `mode` "pixels", an unknown argument.
 
@@ -113,3 +114,48 @@ the case checks its parts and meaning (the ref, the counts, the URL, which outco
 
 41. A page that never answers fails the call at the time limit with the time-limit message, and the next navigation
     succeeds with the right URL and page content (kept timeout test, tightened in P1).
+
+## File upload (added 2026-10-25)
+
+The acceptance checks of kis/intent/plan-file-upload.md, numbered on from here. Each names the test that proves it
+(`test/integration/upload.test.mjs` unless it says otherwise).
+
+42. `tools/list` returns twelve tools, `browser_upload` last: `ref` string and `files` array of strings with
+    `minItems: 1`, both required, not read-only; `files: []`, `files: "x"` and `files: [1]` fail validation. Tests:
+    `test/integration/tools.test.mjs` "twelve tools, in order, …" and "arguments are checked at once, …";
+    `test/unit/guard.test.mjs` "the twelve tools keep their names, …"; `test/unit/server.test.mjs`.
+43. One small fixture file uploaded to each fixture kind (visible input, label, button, input made on click, delayed
+    chooser, same-site and cross-site frames, shadow DOM) answers with its full path and size; the page shows exactly
+    one file with the same name, size and the SHA-256 `sha256sum` gives on the host. Tests: "each kind of upload
+    control gets the file (acceptance 2)".
+44. `multiple` takes two files (both hashes match); a single input given two answers that it takes one and keeps its
+    earlier file; `webkitdirectory` is refused. Tests: "several files, one file, a folder (acceptance 3)".
+45. Every refusal class answers its own message, with the page and the input unchanged and no click (the page's
+    counter). Test: "each refusal of a path has its own answer, … (acceptance 4)" for relative path, missing, outside
+    home, denied location, hard link, not a regular file, unreadable and too large; "changed while reading" needs a
+    file changed between check and read, so it is shown in `test/unit/upload.test.mjs` ("a file changed between the
+    check, the open and the read") and not here.
+46. A drop zone with no chooser answers that it opened none, after exactly one click; a button that opens a pop-up
+    answers that capture does not reach the new tab and no files were assigned, and the pop-up's input has none.
+    Tests: "controls that open no chooser here (acceptance 5)".
+47. `browser_click` on the chooser button answers with the hint naming its ref; the input keeps an earlier selection;
+    no native dialog is open, then and 3 s later; afterwards a click from outside the session opens the native dialog
+    again. Test: `test/integration/chooser.test.mjs`. A native dialog is seen by typing Escape on the container's
+    desktop (`wtype`): one it closes fires the input's `cancel`, which the page counts; a desktop screenshot and a
+    click by a person in the desktop were not used.
+48. Uploads that navigate, open a tab, or are blocked by the allowlist answer like click does; an upload with no
+    visible change says so; on a tab off the allowlist the call is refused with no click and no bytes sent. Tests:
+    "uploads whose page then moves, or shows nothing (acceptance 7)" and "with BROWSER_ALLOWED_HOSTS (acceptance 7)".
+49. An upload abandoned at the time limit whose assignment finishes late: the next action reports its changes against
+    the last answer the agent received. Test: "an upload abandoned at its time limit (acceptance 8)".
+50. Raw MCP results: a success and a Playwright error are inside the envelope; a fictional file whose path holds a
+    closing envelope tag is defanged; a refusal for a denied name with a newline and a forged role marker carries
+    neither; a page asking for an API key signals `secret-request`, an ordinary upload page does not. Tests: "raw
+    results (acceptance 9)".
+51. The cursor's tip ends on the input given the file, and nothing is put into the page with `BROWSER_CURSOR=0`.
+    Tests: "the cursor (acceptance 10)". The label `Upload · <name>` is in a closed shadow root: looked at in a
+    captured frame (2026-10-25, `Upload · Seed list file`), not measured.
+52. Each new guard (validator, each path rule, the location recheck, the size cap, capture cleanup, the teardown
+    barrier, the dispatch, refusal before click) was broken by a literal edit, its test failed, and the file was
+    restored byte-identical. Recorded in each upload task's report (commits 4a44df9 to 9e95cbb), not a test file.
+53. `npm test` passes, and the cases above (1 to 41) still pass. Proof: `npm test` locally; CI on the branch.

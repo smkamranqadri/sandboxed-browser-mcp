@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/hero.svg" alt="Claude Code, Codex and pi call eleven browser tools over MCP; Chromium in Docker loads a site on your list, refuses one that is not, and page text comes back marked as untrusted." width="860">
+  <img src="docs/assets/hero.svg" alt="Claude Code, Codex and pi call twelve browser tools over MCP; Chromium in Docker loads a site on your list, refuses one that is not, and page text comes back marked as untrusted." width="860">
 </p>
 
 <h1 align="center">sandboxed-browser-mcp</h1>
@@ -22,7 +22,7 @@ You ask your agent to read the docs of a new API, check a page you just deployed
 It needs a browser. A browser holds your logins and can reach anything, and the pages it reads can
 try to give your agent orders.
 
-sandboxed-browser-mcp is an MCP server with eleven browser tools. They drive Chromium inside a Docker
+sandboxed-browser-mcp is an MCP server with twelve browser tools. They drive Chromium inside a Docker
 container, answer with the page as short text a model can use, and, when you list allowed hosts,
 keep the browser on them: the browser's own policy, a guard on every page request and a check after
 every action each refuse the rest. Everything read from a page comes back marked as untrusted.
@@ -67,8 +67,12 @@ hand instead, see [Configuration](docs/configuration.md#manual-setup).
   and you can watch it, or take over, in a web page at `https://127.0.0.1:3101`.
 - Answers sized for a model. A page is its viewport as text, one line per element with a ref to act on. A click or a
   typed field answers with what changed on screen, not the whole page again.
-- Eleven tools: `browser_navigate`, `browser_back`, `browser_snapshot`, `browser_click`, `browser_type`,
-  `browser_select`, `browser_key`, `browser_scroll`, `browser_find`, `browser_get_text`, `browser_screenshot`.
+- Twelve tools: `browser_navigate`, `browser_back`, `browser_snapshot`, `browser_click`, `browser_type`,
+  `browser_select`, `browser_key`, `browser_scroll`, `browser_find`, `browser_get_text`, `browser_screenshot`,
+  `browser_upload`.
+- File upload from your machine: `browser_upload` gives a page's file input files from under your home folder,
+  through the input, its label or the button that opens its chooser, with no file dialog and no folder shared with the
+  container.
 - A fence, when you want one. List the hosts the agent may use, and three layers each refuse the rest: the browser's
   own policy, a guard on every page request, and a check of where every action ended up.
 - Page text marked as untrusted, every time, with a warning line when it looks like an attempt to steer the agent.
@@ -80,7 +84,7 @@ hand instead, see [Configuration](docs/configuration.md#manual-setup).
 | --- | --- | --- |
 | Claude Code | `claude mcp add -s user browser …` | in every project |
 | Codex | `codex mcp add browser …` | asks before each tool call; may prefer its own browser (below) |
-| pi | `pi mcp add browser --exposure direct …` | lists the eleven tools as they are |
+| pi | `pi mcp add browser --exposure direct …` | lists the twelve tools as they are |
 
 The install script runs these for you with `--client`. Any other MCP client works too: it runs
 `node <install dir>/dist/server.js` over stdio. Each was checked with one real session; see
@@ -102,6 +106,7 @@ Ask for what you want; the agent picks the tools:
 Open docs.example.com and find how to rotate an API key.
 Check the pricing page on our staging site and tell me if the new plan shows.
 Fill in the signup form on example.org with these details, but stop before you submit.
+Attach ~/Documents/seed-list.csv to the import form.
 ```
 
 - Watch it work, or take over, at `https://127.0.0.1:3101`. An arrow shows where the agent is about to click.
@@ -117,6 +122,8 @@ Fill in the signup form on example.org with these details, but stop before you s
 - The fence is a filter, not a wall: an allowed page's own images, scripts and requests may reach any host, and the
   container has ordinary network access. Keep the list tight, and keep accounts you cannot afford to lose out of the
   profile.
+- Uploads read files from your machine: only regular files under your home folder, never credential, key, history or
+  browser-profile files (a denylist), and the page then has their bytes and can send them anywhere. Linux only.
 - Anything on your machine that can reach `127.0.0.1:9322` can drive the browser.
 
 The full threat model, with what is and is not covered: [Security](docs/security.md).

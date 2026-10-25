@@ -17,7 +17,7 @@ import { changes, describe, excerpt, findRef, fullText, render, search, type Ari
 export { ToolError, keyCombo };
 
 /**
- * The eleven browser tools. One server process is one session: it follows one tab of the browser (Chromium over CDP,
+ * The twelve browser tools. One server process is one session: it follows one tab of the browser (Chromium over CDP,
  * through Playwright), shows it as text (view.ts), acts on elements by the refs the view gives, and answers an action
  * with what it changed. With BROWSER_ALLOWED_HOSTS set it keeps the tab on those hosts: the guard (navguard.ts) fails
  * document requests to other hosts in the browser, and the tools judge every navigation and action by where the tab

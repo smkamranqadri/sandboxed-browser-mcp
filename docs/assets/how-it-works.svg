@@ -42,7 +42,7 @@
   <text class="head" x="56" y="90">Your agent calls a tool</text>
   <text class="mono" x="56" y="114">browser_navigate</text>
   <text class="mono" x="56" y="132">browser_click e12</text>
-  <text class="body" x="56" y="152">eleven tools in all</text>
+  <text class="body" x="56" y="152">twelve tools in all</text>
 
   <rect class="card" x="268" y="64" width="196" height="104" rx="10"/>
   <text class="head" x="284" y="90">One at a time</text>

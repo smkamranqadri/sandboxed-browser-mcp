@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`browser_upload { ref, files }`**, the twelfth tool: gives a page's file input files from this machine, under the
+  server's home only, minus a denylist of credential, key, history and browser-profile files. A file input or its
+  label gets them directly; any other control (a button that opens a chooser, one that makes its input on click) is
+  clicked once and the file chooser it opens gets them. Files are read on the host and sent as bytes over CDP: no
+  folder is shared with the container. Linux only.
+
+### Changed
+
+- **`browser_click` catches a file chooser** its click opens on the followed tab: no native dialog appears, no file is
+  chosen (an earlier selection stays), and the answer points to `browser_upload` with the ref.
+
+### Known limits
+
+- A page that removes its file input right after opening the chooser reads as uploaded, though the page got nothing.
+- The container's native file dialog drops the file picked in it (seen on Wayland without a desktop portal), so
+  picking by hand in the browser's desktop does not upload either.
+
 ## 1.0.0 (2026-10-24)
 
 The first release: an MCP server that lets a coding agent use a real Chromium in Docker, read as short text and kept
