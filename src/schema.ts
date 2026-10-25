@@ -1,9 +1,12 @@
 /**
- * The tools' argument schemas: small JSON schemas (string, number, boolean, enum; a required list) that the server
- * checks itself (validate.ts) and lists to clients. Names, types, defaults and required lists are a public interface.
+ * The tools' argument schemas: small JSON schemas (string, number, boolean, enum, a non-empty array of strings; a
+ * required list) that the server checks itself (validate.ts) and lists to clients. Names, types, defaults and required
+ * lists are a public interface.
  */
 
-type Field = { type: "string" | "number" | "boolean"; description: string; enum?: string[]; default?: unknown };
+type Scalar = { type: "string" | "number" | "boolean"; description: string; enum?: string[]; default?: unknown };
+type List = { type: "array"; items: { type: "string" }; minItems: 1; description: string };
+type Field = Scalar | List;
 
 export type Schema = {
   type: "object";

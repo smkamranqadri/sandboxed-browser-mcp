@@ -122,6 +122,19 @@ test("arguments are checked against the tool's schema", () => {
   assert.equal(validateArgs({ type: "object", properties: {} }, undefined), null);
 });
 
+test("an array argument must be a non-empty array of strings; the scalar messages stay as they were", () => {
+  const schema = { type: "object", required: ["ref", "files"], properties: { ref: { type: "string" }, files: { type: "array", items: { type: "string" }, minItems: 1 } } };
+  assert.equal(validateArgs(schema, { ref: "e1", files: ["~/notes/plan.txt"] }), null);
+  assert.equal(validateArgs(schema, { ref: "e1", files: ["~/a.txt", "/home/sample/b.png"] }), null);
+  assert.equal(validateArgs(schema, { ref: "e1" }), 'Missing argument "files".');
+  assert.equal(validateArgs(schema, { ref: "e1", files: [] }), 'Argument "files" must have at least 1 item.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: "x" }), 'Argument "files" must be an array of strings.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: { 0: "x" } }), 'Argument "files" must be an array of strings.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: [1] }), 'Argument "files[0]" must be a string.');
+  assert.equal(validateArgs(schema, { ref: "e1", files: ["~/a.txt", null] }), 'Argument "files[1]" must be a string.');
+  assert.equal(validateArgs(schema, { ref: 3, files: ["~/a.txt"] }), 'Argument "ref" must be a string.');
+});
+
 test("the eleven tools keep their names, and the server's rules reach the model", () => {
   const defs = browserTools("t");
   assert.deepEqual(
@@ -129,6 +142,8 @@ test("the eleven tools keep their names, and the server's rules reach the model"
     ["browser_navigate", "browser_back", "browser_snapshot", "browser_click", "browser_type", "browser_select", "browser_key", "browser_scroll", "browser_find", "browser_get_text", "browser_screenshot"],
   );
   for (const d of defs) assert.equal(d.inputSchema.type, "object", d.name);
+  // No tool takes an array yet: no property carries items or minItems.
+  for (const d of defs) for (const [k, v] of Object.entries(d.inputSchema.properties)) assert.deepEqual([v.type === "array", v.items, v.minItems], [false, undefined, undefined], `${d.name}.${k}`);
   const text = instructions(defs);
   assert.match(text, /answer with what changed/);
   assert.match(text, /never guess one/);

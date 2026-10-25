@@ -37,24 +37,24 @@ after(async () => {
 });
 
 describe("the interface", () => {
-  test("eleven tools, in order, with their arguments, types, defaults, required lists and enums; four read-only", async () => {
+  test("eleven tools, in order, with their arguments, types, defaults, required lists, enums, items and minItems; four read-only", async () => {
     const list = await mcp.tools();
     assert.deepEqual(list.map((t) => t.name), ["browser_navigate", "browser_back", "browser_snapshot", "browser_click", "browser_type", "browser_select", "browser_key", "browser_scroll", "browser_find", "browser_get_text", "browser_screenshot"]);
     const shape = Object.fromEntries(
-      list.map((t) => [t.name, { props: Object.fromEntries(Object.entries(t.inputSchema.properties ?? {}).map(([k, v]) => [k, [v.type, v.enum ?? null, v.default ?? null]])), required: t.inputSchema.required ?? [] }]),
+      list.map((t) => [t.name, { props: Object.fromEntries(Object.entries(t.inputSchema.properties ?? {}).map(([k, v]) => [k, [v.type, v.enum ?? null, v.default ?? null, v.items ?? null, v.minItems ?? null]])), required: t.inputSchema.required ?? [] }]),
     );
     assert.deepEqual(shape, {
-      browser_navigate: { props: { url: ["string", null, null] }, required: ["url"] },
+      browser_navigate: { props: { url: ["string", null, null, null, null] }, required: ["url"] },
       browser_back: { props: {}, required: [] },
-      browser_snapshot: { props: { mode: ["string", ["a11y", "index"], "a11y"] }, required: [] },
-      browser_click: { props: { ref: ["string", null, null], double: ["boolean", null, false] }, required: ["ref"] },
-      browser_type: { props: { ref: ["string", null, null], text: ["string", null, null], submit: ["boolean", null, false] }, required: ["ref", "text"] },
-      browser_select: { props: { ref: ["string", null, null], option: ["string", null, null] }, required: ["ref", "option"] },
-      browser_key: { props: { key: ["string", null, null] }, required: ["key"] },
-      browser_scroll: { props: { direction: ["string", ["down", "up"], "down"], screens: ["number", null, 1], ref: ["string", null, null] }, required: [] },
-      browser_find: { props: { query: ["string", null, null] }, required: ["query"] },
-      browser_get_text: { props: { ref: ["string", null, null], offset: ["number", null, 0], max_chars: ["number", null, 2000] }, required: ["ref"] },
-      browser_screenshot: { props: { ref: ["string", null, null] }, required: [] },
+      browser_snapshot: { props: { mode: ["string", ["a11y", "index"], "a11y", null, null] }, required: [] },
+      browser_click: { props: { ref: ["string", null, null, null, null], double: ["boolean", null, false, null, null] }, required: ["ref"] },
+      browser_type: { props: { ref: ["string", null, null, null, null], text: ["string", null, null, null, null], submit: ["boolean", null, false, null, null] }, required: ["ref", "text"] },
+      browser_select: { props: { ref: ["string", null, null, null, null], option: ["string", null, null, null, null] }, required: ["ref", "option"] },
+      browser_key: { props: { key: ["string", null, null, null, null] }, required: ["key"] },
+      browser_scroll: { props: { direction: ["string", ["down", "up"], "down", null, null], screens: ["number", null, 1, null, null], ref: ["string", null, null, null, null] }, required: [] },
+      browser_find: { props: { query: ["string", null, null, null, null] }, required: ["query"] },
+      browser_get_text: { props: { ref: ["string", null, null, null, null], offset: ["number", null, 0, null, null], max_chars: ["number", null, 2000, null, null] }, required: ["ref"] },
+      browser_screenshot: { props: { ref: ["string", null, null, null, null] }, required: [] },
     });
     assert.deepEqual(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name), ["browser_snapshot", "browser_find", "browser_get_text", "browser_screenshot"]);
     for (const t of list) assert.ok(t.description.length > 40 && t.description.length < 400, t.name);
