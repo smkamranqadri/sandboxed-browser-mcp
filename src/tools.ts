@@ -285,7 +285,6 @@ function loadFailure(url: string, e: unknown): ToolError {
 
 const badAddress = (url: string) => new ToolError(`"${url}" is not a full address. Give one with its scheme, for example https://example.com/page.`);
 
-/** Roles one never types into: refused at once, from what the view showed. */
 /** In the element's own document: the file input it is, or labels, with how it takes files; null for anything else. */
 function fileInputOf(el: Element): { multiple: boolean; directory: boolean } | null {
   const control = el.localName === "label" ? (el as HTMLLabelElement).control : el;
@@ -294,19 +293,23 @@ function fileInputOf(el: Element): { multiple: boolean; directory: boolean } | n
   return { multiple: input.multiple, directory: input.webkitdirectory };
 }
 
+/** The file input `el` is, or that it labels (fileInputOf said it is one). */
+const fileControlOf = (el: Element): Element | null => (el.localName === "label" ? (el as HTMLLabelElement).control : el);
+
 const folderPicker = (ref: string) => new ToolError(`${ref} picks a folder (webkitdirectory): folder upload is not supported, and nothing was assigned.`);
-const singleFile = (ref: string, count: number, chooser = false) =>
-  new ToolError(`${chooser ? `The file chooser ${ref} opened` : ref} takes one file, and ${count} were given: nothing was assigned, and it keeps what it had.`);
+const singleFile = (ref: string, count: number) => new ToolError(`${ref} takes one file, and ${count} were given: nothing was assigned, and it keeps what it had.`);
+const offListTab = (place: string) => `The tab is on ${place}, which is not an allowed host (BROWSER_ALLOWED_HOSTS): no files were sent to it.`;
 
 /** Refuses to send files to a tab off the allowed hosts. */
 function sendable(page: Page): void {
   const place = offList(page.url());
-  if (place) throw new ToolError(`The tab is on ${place}, which is not an allowed host (BROWSER_ALLOWED_HOSTS): no files were sent to it.`);
+  if (place) throw new ToolError(offListTab(place));
 }
 
 /** The files attached, each with its full path and size. */
 const attached = (files: PreparedFile[]): string => files.map((f) => `${f.path} (${f.size.toLocaleString("en-US")} byte${f.size === 1 ? "" : "s"})`).join(", ");
 
+/** Roles one never types into: refused at once, from what the view showed. */
 const NOT_TYPABLE = new Set("button link checkbox radio switch option img slider tab menuitem menuitemcheckbox menuitemradio treeitem heading separator progressbar meter listbox".split(" "));
 
 // ---- Elements that stayed put during a scroll ----------------------------------------------------------------------
@@ -709,11 +712,14 @@ class Session {
     let clickedAt = 0;
     let stop = () => {};
     let assigned = false;
+    // Refused once the click was made: said with what the click changed, as click would.
+    let refused: string | undefined;
     const release = async () => {
       stop();
       await capture?.release();
     };
     const what = (opened: boolean) => {
+      if (refused) return `Clicked ${ref} to upload, and no files were sent: ${refused}`;
       if (assigned || !capture) return `Uploaded to ${ref}: ${attached(prepared)}`;
       return opened
         ? `Clicked ${ref} to upload (no file chooser was caught on this page, upload capture does not reach other tabs, and no files were assigned)`
@@ -735,7 +741,10 @@ class Session {
           sendable(page);
           stillWanted();
           this.acting();
-          await locator.setInputFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
+          // Playwright does not follow a label to its control: the input itself is given the files.
+          const input = (await locator.evaluateHandle(fileControlOf, undefined, { timeout: WAIT_ACTION })).asElement();
+          if (!input) throw gone(ref);
+          await input.setInputFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
             throw actionFailure(e, ref, "uploaded to");
           });
           assigned = true;
@@ -754,8 +763,15 @@ class Session {
         const chooser = await capture.first(clickedAt + UPLOAD_CHOOSER_MS - Date.now());
         stillWanted();
         if (!chooser) return;
-        if (payloads.length > 1 && !chooser.isMultiple()) throw singleFile(ref, payloads.length, true);
-        sendable(chooser.page());
+        if (payloads.length > 1 && !chooser.isMultiple()) {
+          refused = `the file chooser it opened takes one file, and ${payloads.length} were given, so it keeps what it had`;
+          return;
+        }
+        const place = offList(chooser.page().url());
+        if (place) {
+          refused = `the chooser's tab is on ${place}, which is not an allowed host (BROWSER_ALLOWED_HOSTS)`;
+          return;
+        }
         stillWanted();
         await chooser.setFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
           throw actionFailure(e, ref, "uploaded to");

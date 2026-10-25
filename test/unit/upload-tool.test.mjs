@@ -119,7 +119,11 @@ const makePage = (start = "http://allowed.fixture.test/upload") => {
 const locator = {
   count: async () => (await step("find"), 1),
   evaluate: async (fn) => (await step("inspect"), fn(element)),
-  setInputFiles: (payloads) => step(`setInputFiles ${names(payloads)}`),
+  // The element the files go to, as the page-side lookup (tools.ts fileControlOf, run here) gives it.
+  evaluateHandle: async (fn) => {
+    const to = fn(element);
+    return { asElement: () => to && { setInputFiles: (payloads) => step(`setInputFiles ${to.localName} ${names(payloads)}`) } };
+  },
   click: async () => {
     await step("click");
     if (click.opensTab) {
@@ -165,14 +169,14 @@ describe("dispatch", () => {
   test("a file input gets the files directly: no click, no chooser capture", async () => {
     element = fileInput();
     assert.equal(await answer(["~/docs/plan.txt"]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "setInputFiles plan.txt:text/plain:10"]);
+    assert.deepEqual(done, ["find", "inspect", "setInputFiles input plan.txt:text/plain:10"]);
     clean();
   });
 
   test("an input with multiple takes several, in order, each with its path and size", async () => {
     element = fileInput({ multiple: true });
     assert.equal(await answer([PLAN, "~/docs/photo.png"]), `Uploaded to e4: ${PLAN} (10 bytes), ${PHOTO} (1,234 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "setInputFiles plan.txt:text/plain:10,photo.png:image/png:1234"]);
+    assert.deepEqual(done, ["find", "inspect", "setInputFiles input plan.txt:text/plain:10,photo.png:image/png:1234"]);
     assert.equal(await answer([DOT]), `Uploaded to e4: ${DOT} (1 byte). ${SAME}`);
   });
 
@@ -189,7 +193,7 @@ describe("dispatch", () => {
   test("a label for a file input gets them the same way; a label for something else, or none, is clicked", async () => {
     element = { localName: "label", control: fileInput() };
     assert.equal(await answer([PLAN]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "setInputFiles plan.txt:text/plain:10"]);
+    assert.deepEqual(done, ["find", "inspect", "setInputFiles input plan.txt:text/plain:10"]);
     for (const other of [{ localName: "label", control: { localName: "input", type: "text" } }, { localName: "label", control: null }, { localName: "input", type: "text" }]) {
       element = other;
       click = { ...click, chooser: true };
@@ -212,7 +216,8 @@ describe("dispatch", () => {
     assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "setFiles plan.txt:text/plain:10", "intercept off"]);
     done.length = 0;
     click = { ...click, delay: 0, multiple: false };
-    await assert.rejects(upload([PLAN, PHOTO]).result, /^Error: The file chooser e4 opened takes one file, and 2 were given: nothing was assigned, and it keeps what it had\.$/);
+    // Refused after the click: said with what the click changed.
+    assert.equal(await answer([PLAN, PHOTO]), `Clicked e4 to upload, and no files were sent: the file chooser it opened takes one file, and 2 were given, so it keeps what it had. ${SAME}`);
     assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "intercept off"]);
     clean();
   });
@@ -354,7 +359,10 @@ describe("with an allowlist", () => {
 
   test("a chooser on a page off the allowed hosts is sent nothing", async () => {
     click = { ...click, chooser: true, chooserUrl: "http://blocked.example.net/upload" };
-    await assert.rejects(upload(["~/docs/plan.txt"]).result, /^Error: The tab is on blocked\.example\.net, which is not an allowed host \(BROWSER_ALLOWED_HOSTS\): no files were sent to it\.$/);
+    assert.equal(
+      await answer(["~/docs/plan.txt"]),
+      `Clicked e4 to upload, and no files were sent: the chooser's tab is on blocked.example.net, which is not an allowed host (BROWSER_ALLOWED_HOSTS). ${SAME}`,
+    );
     assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "intercept off"]);
     clean();
   });

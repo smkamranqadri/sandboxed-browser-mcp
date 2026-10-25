@@ -47,7 +47,11 @@ test("a click that opens a file chooser is caught: no dialog, the earlier file s
     `Clicked ${ref}, which opens a file chooser: it was caught, so no dialog opened and no file was chosen. To attach files, use browser_upload on ${ref}. Changes since the last look:`,
   );
   assert.deepEqual(await counts(), ["1", "earlier-seedling.txt", "0"]);
-  // No native dialog is open: Escape on the desktop dismisses nothing.
+  // No native dialog is open: Escape on the desktop dismisses nothing, then and 3 s later.
+  escape();
+  await pause(800);
+  assert.deepEqual(await counts(), ["1", "earlier-seedling.txt", "0"]);
+  await pause(2200);
   escape();
   await pause(800);
   assert.deepEqual(await counts(), ["1", "earlier-seedling.txt", "0"]);
