@@ -123,7 +123,8 @@ what changed, not with the whole page:
 - A click that opens a file chooser on the followed tab: the chooser is caught (no native dialog opens), given no
   files (an earlier selection stays), and the answer says that this ref opens a file chooser and to use
   `browser_upload` on it, then what changed. Caught: choosers the followed tab opens from just before the click until
-  the page has settled, and at least 1 s after it; a person's or a script's chooser at that moment may be caught too.
+  the page has settled, and at least 1 s after the click returns, however many were caught already; a person's or a
+  script's chooser at that moment may be caught too.
   Choosers opened outside that window (by `browser_key` Enter, a script, a person) keep the native dialog.
 - The diff compares against what the agent saw last in this tab (the last view or diff answer), so a change made
   by a late call the agent never saw still shows up in the next answer.
@@ -272,23 +273,27 @@ each rule is there, is kis/intent/plan-file-upload.md.
   <reason>.`, with one rule each: relative path, missing, outside home, denied location, hard link, not a regular
   file, unreadable, too large, changed while reading. It never carries the path, its name or a system error.
 - Dispatch, by looking at the ref's element in its own document or shadow root:
-  - a file input, or a label for one: the input is given the files directly, with no click. A folder input
-    (`webkitdirectory`) is refused, and two or more files on an input without `multiple` are refused; the input keeps
-    what it had.
+  - a file input, or a label for one: the input is resolved once, inspected and given the files directly, with no
+    click (a label pointed at another input meanwhile does not move them). A folder input (`webkitdirectory`) is
+    refused, two or more files on an input without `multiple` are refused (the input keeps what it had), and an input
+    no longer on the page when the files would be sent is refused, with no new lookup.
   - anything else: clicked once, with the file chooser capture of section 6 armed; a chooser the followed tab opens
-    within 2 s gets the files (its own `multiple` decides two or more). Never a second lookup or click.
+    within 2 s after the click returns gets the files (its own `multiple` decides two or more), unless its input is no
+    longer on the page. Never a second lookup or click.
 - Answers, through the same machinery as click (the diff against what the agent saw last, the new page, the new tab,
   blocked):
   - given: `Uploaded to <ref>: <path> (<size> bytes), …` with each file's full path, then what changed.
   - no chooser: that the click opened no file chooser, no files were assigned, and to point the tool at the upload
     control itself. When the click opened a new tab instead: that no chooser was caught on this page, capture does not
     reach other tabs, and no files were assigned.
-  - refused after the click (two files on a chooser that takes one, a chooser's tab off the allowed hosts): the
-    refusal, then what the click changed.
+  - refused after the click (two files on a chooser that takes one, a chooser whose input the page removed, a
+    chooser's tab off the allowed hosts): the refusal, then what the click changed.
 - The tab, or the chooser's tab, is checked against the allowed hosts before any bytes are sent.
 - Given up at its time limit: the capture is released at once, and no files are sent after that.
 - The cursor's label is `Upload · <name>`.
 - The file chooser capture (`src/chooser.ts`) switches the browser's interception through the page's channel and
   waits for it to be confirmed on, before the click, and off, before the listener goes; the next call does not start
-  until an earlier capture's release is confirmed. A browser that does not confirm within 10 s has the connection
-  dropped instead, which ends the interception with it.
+  until an earlier capture's release is confirmed. A switch-off that fails or is not confirmed within 10 s, on a page
+  still open, has the connection dropped instead, which ends the interception with it. Not seen: a switch-off the
+  browser rejects while its session lives, because Playwright 1.64.0 discards that error (owner, 2026-10-25: accepted
+  and documented).

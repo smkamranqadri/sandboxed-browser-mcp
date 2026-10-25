@@ -42,6 +42,9 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 /** What a click on the fake page does: open no chooser, one now, one after `delay` ms, or (double) one per click. */
 let opens = { choosers: 0, delay: 0 };
 let clickFails = false;
+/** The browser refusing to switch interception off (it stays on), and the page closed meanwhile. */
+let disableFails = false;
+let pageClosed = false;
 
 const makePage = () => {
   const listeners = [];
@@ -49,7 +52,7 @@ const makePage = () => {
   let intercepting = false;
   let wanted = false;
   const page = {
-    isClosed: () => false,
+    isClosed: () => pageClosed,
     context: () => context,
     url: () => "http://allowed.fixture.test/upload",
     ariaSnapshotJSON: async () => [],
@@ -65,6 +68,7 @@ const makePage = () => {
         if (enabled === wanted) return;
         wanted = enabled;
         await step(`intercept ${enabled ? "on" : "off"}`);
+        if (!enabled && disableFails) throw new Error("Protocol error (Page.setInterceptFileChooserDialog): refused");
         intercepting = enabled;
       },
     },
@@ -89,6 +93,8 @@ const makePage = () => {
     },
     listeners: () => listeners.length,
     intercepting: () => intercepting,
+    /** The connection closed: the browser drops every interception it had set up. */
+    disconnected: () => (intercepting = false),
   };
   return page;
 };
@@ -97,7 +103,8 @@ const clickOnce = async () => {
   await step("click");
   if (clickFails) throw new Error("locator.click: Timeout 10000ms exceeded.\nCall log:\n  - element is not visible");
   for (let i = 0; i < opens.choosers; i++) {
-    if (opens.delay) setTimeout(() => current.openChooser(), opens.delay);
+    const delay = opens.delays?.[i] ?? opens.delay;
+    if (delay) setTimeout(() => current.openChooser(), delay);
     else current.openChooser();
   }
 };
@@ -114,7 +121,15 @@ const context = {
   off: () => {},
   newCDPSession: async () => ({ send: async () => ({ targetInfo: { targetId: "fixture-tab" } }), detach: async () => {} }),
 };
-chromium.connectOverCDP = async () => ({ isConnected: () => true, contexts: () => [context], on: () => {}, close: async () => void done.push("connection closed") });
+chromium.connectOverCDP = async () => ({
+  isConnected: () => true,
+  contexts: () => [context],
+  on: () => {},
+  close: async () => {
+    done.push("connection closed");
+    current.disconnected();
+  },
+});
 
 after(() => disconnect());
 
@@ -124,6 +139,10 @@ beforeEach(async () => {
   current = makePage();
   opens = { choosers: 0, delay: 0 };
   clickFails = false;
+  disableFails = false;
+  pageClosed = false;
+  // A step an earlier test left held (one never let go on purpose) is not this test's.
+  holds.clear();
   holding = new Set();
   tools = new Map(browserTools(`unit-chooser-${++sessions}`).map((d) => [d.name, d]));
   await runCall(() => tools.get("browser_snapshot").execute("call", {})).result;
@@ -176,6 +195,30 @@ test("a double-click that opens two choosers: both caught, one hint, no files", 
   opens = { choosers: 2, delay: 0 };
   assert.equal(await textOf(call("browser_click", { ref: "e4", double: true }).result), HINT.replace("Clicked", "Double-clicked"));
   assert.deepEqual(done, ["find", "intercept on", "click", "chooser", "chooser", "intercept off"]);
+  clean();
+});
+
+test("a chooser caught does not end the window: a second one 0.6 s after the click is caught too", async () => {
+  // The first at once (before the window is waited out) and a moment later (while it is).
+  for (const first of [0, 200]) {
+    opens = { choosers: 2, delays: [first, 600] };
+    done.length = 0;
+    assert.equal(await textOf(call("browser_click", { ref: "e4" }).result), HINT, String(first));
+    assert.deepEqual(done, ["find", "intercept on", "click", "chooser", "chooser", "intercept off"], String(first));
+    clean();
+  }
+});
+
+test("the window counts from when the click returns, not from before the element was ready", { timeout: 10_000 }, async () => {
+  // The click waits 1.2 s for its element (longer than the whole window), and its chooser opens 0.5 s after it.
+  opens = { choosers: 1, delay: 500 };
+  holding = new Set(["click"]);
+  const { result } = call("browser_click", { ref: "e4" });
+  await waitFor("click");
+  await pause(1200);
+  letGo("click");
+  assert.equal(await textOf(result), HINT);
+  assert.deepEqual(done, ["find", "intercept on", "click", "chooser", "intercept off"]);
   clean();
 });
 
@@ -298,5 +341,28 @@ describe("a browser that does not confirm", () => {
     await assert.rejects(call("browser_click", { ref: "e4" }).result, /^Error: The browser did not answer in time, so nothing was clicked\. Try again, or tell the user\.$/);
     assert.deepEqual(done, ["find", "intercept on", "intercept off"]);
     assert.equal(current.listeners(), 0);
+  });
+});
+
+describe("a browser that refuses to switch interception off", () => {
+  test("on a page still open: the connection is dropped before anything goes on, and a later chooser gets the native dialog", { timeout: 5000 }, async () => {
+    disableFails = true;
+    assert.equal(await textOf(call("browser_click", { ref: "e4" }).result), "Clicked e4. The view looks exactly as before.");
+    assert.deepEqual(done, ["find", "intercept on", "click", "intercept off", "connection closed"]);
+    assert.equal(current.listeners(), 0);
+    // A person's chooser on that page, afterwards: not intercepted.
+    current.openChooser();
+    assert.equal(done.at(-1), "native dialog");
+  });
+
+  test("on a page that closed meanwhile: nothing left to drop", { timeout: 5000 }, async () => {
+    disableFails = true;
+    holding = new Set(["intercept off"]);
+    const { result } = call("browser_click", { ref: "e4" });
+    await waitFor("intercept off");
+    pageClosed = true;
+    letGo("intercept off");
+    await result;
+    assert.deepEqual(done, ["find", "intercept on", "click", "intercept off"]);
   });
 });

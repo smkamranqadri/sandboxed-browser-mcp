@@ -17,7 +17,6 @@
 
 ### Known limits
 
-- A page that removes its file input right after opening the chooser reads as uploaded, though the page got nothing.
 - The container's native file dialog drops the file picked in it (seen on Wayland without a desktop portal), so
   picking by hand in the browser's desktop does not upload either.
 

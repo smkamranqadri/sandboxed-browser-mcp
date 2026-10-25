@@ -42,7 +42,10 @@ What sandboxed-browser-mcp protects, and what it does not. To report a problem, 
   ordinary file (a token in `~/notes.txt`) or under a path the denylist does not know; a file rewritten in place,
   keeping its size, while it is read; the denylist is a filter, not a wall; and once the page has the bytes, its
   scripts may send them to any host (sub-resources are not fenced, above). Linux only: the location check reads
-  `/proc/self/fd`, and on other systems every upload is refused.
+  `/proc/self/fd`, and on other systems every upload is refused. File chooser interception (during the agent's own
+  click) is switched off when the call ends; a switch-off that fails or is not answered in time drops the browser
+  connection, which ends it. Not seen: a switch-off the browser rejects while its session lives, because Playwright
+  1.64.0 discards that error, so later choosers on that page could stay caught without a dialog.
 - **Revoke:** `install.sh uninstall --purge`, or `docker compose -f docker/compose.yaml down -v` for a manual setup,
   deletes the container *and* its profile volume (cookies, logins). Without `--purge` / `-v` the profile is kept.
 - The browser runs with `seccomp=unconfined` and `--no-sandbox` (the image's defaults for Chromium inside a container).

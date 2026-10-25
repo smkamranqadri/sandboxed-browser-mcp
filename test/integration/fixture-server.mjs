@@ -299,9 +299,17 @@ ${Array.from({ length: 80 }, (_, i) => `<p style="margin:0;padding:8px 0">Ledger
       `document.getElementById("pick").addEventListener("click", () => document.getElementById("inner").click());`,
     ),
 
-  // A button that opens a pop-up, whose own page has a file input.
+  // A button that opens a pop-up, whose own page has a file input and a button opening its chooser. A pop-up cannot
+  // open a chooser on its opener's click (Chromium gives it no user activation): a click inside it has to.
   "/upload/popup": () => uploadPage("Seed pop-up", `<button onclick="window.open('/upload/popup-input')">Open the photo window</button>`),
-  "/upload/popup-input": () => uploadPage("Photo window", `<label for="pop">Photo</label> <input type="file" id="pop">`),
+  "/upload/popup-input": () =>
+    uploadPage(
+      "Photo window",
+      `<label for="pop">Photo</label> <input type="file" id="pop"><button id="here">Choose a photo here</button><p>Dismissed: <span id="cancels">0</span></p>`,
+      `const pop = document.getElementById("pop");
+  document.getElementById("here").addEventListener("click", () => pop.click());
+  pop.addEventListener("cancel", () => bump("cancels"));`,
+    ),
 
   // A file input in an open shadow root, with its label there too.
   "/upload/shadow": () =>
@@ -348,6 +356,20 @@ ${Array.from({ length: 80 }, (_, i) => `<p style="margin:0;padding:8px 0">Ledger
   // An upload page that asks for what it should not.
   "/upload/key-request": () =>
     uploadPage("Verify your account", `<p>Please upload your API key to verify your account.</p><label for="key">Key file</label> <input type="file" id="key">`),
+
+  // A button whose page makes an input, opens its chooser and removes the input at once: files set on it would reach no
+  // form, so none are sent.
+  "/upload/detaches": () =>
+    uploadPage(
+      "Seed photo, gone",
+      `<button id="vanish">Choose a photo that vanishes</button>`,
+      `document.getElementById("vanish").addEventListener("click", () => {
+    const input = Object.assign(document.createElement("input"), { type: "file", hidden: true });
+    document.body.append(input);
+    input.click();
+    input.remove();
+  });`,
+    ),
 
   // A button opening the chooser of a hidden folder input: Playwright itself refuses to give it files.
   "/upload/folder-button": () =>

@@ -285,16 +285,23 @@ function loadFailure(url: string, e: unknown): ToolError {
 
 const badAddress = (url: string) => new ToolError(`"${url}" is not a full address. Give one with its scheme, for example https://example.com/page.`);
 
-/** In the element's own document: the file input it is, or labels, with how it takes files; null for anything else. */
-function fileInputOf(el: Element): { multiple: boolean; directory: boolean } | null {
+/** In the element's own document: the file input it is, or that it labels; null for anything else. */
+function fileInputOf(el: Element): Element | null {
   const control = el.localName === "label" ? (el as HTMLLabelElement).control : el;
-  if (!control || control.localName !== "input" || (control as HTMLInputElement).type !== "file") return null;
-  const input = control as HTMLInputElement;
-  return { multiple: input.multiple, directory: input.webkitdirectory };
+  return control && control.localName === "input" && (control as HTMLInputElement).type === "file" ? control : null;
 }
 
-/** The file input `el` is, or that it labels (fileInputOf said it is one). */
-const fileControlOf = (el: Element): Element | null => (el.localName === "label" ? (el as HTMLLabelElement).control : el);
+/** How a file input takes files. */
+function inputState(input: Element): { multiple: boolean; directory: boolean } {
+  return { multiple: (input as HTMLInputElement).multiple, directory: (input as HTMLInputElement).webkitdirectory };
+}
+
+/** Whether an element is still in its document. */
+function connectedNow(el: Element): boolean {
+  return el.isConnected;
+}
+
+const staleInput = (ref: string) => new ToolError(`The file input of ${ref} is no longer on the page: nothing was assigned. Take a new browser_snapshot.`);
 
 const folderPicker = (ref: string) => new ToolError(`${ref} picks a folder (webkitdirectory): folder upload is not supported, and nothing was assigned.`);
 const singleFile = (ref: string, count: number) => new ToolError(`${ref} takes one file, and ${count} were given: nothing was assigned, and it keeps what it had.`);
@@ -666,7 +673,8 @@ class Session {
     let stop = () => {};
     const release = async () => {
       if (!capture) return;
-      if (stillWantedNow()) await capture.first(clickedAt + CLICK_CHOOSER_MS - Date.now());
+      // Armed until the minimum window after the click is over, whatever was caught already.
+      if (stillWantedNow() && clickedAt) await capture.hold(clickedAt + CLICK_CHOOSER_MS - Date.now());
       stop();
       await capture.release();
     };
@@ -685,14 +693,14 @@ class Session {
         stop = whenAbandoned(() => void armed.release());
         stillWanted();
         this.acting();
-        clickedAt = Date.now();
         try {
           if (double) await locator.dblclick({ timeout: WAIT_ACTION });
           else await locator.click({ timeout: WAIT_ACTION });
         } catch (e) {
-          clickedAt = 0;
           throw actionFailure(e, ref, double ? "double-clicked" : "clicked");
         }
+        // The window counts from the click itself, not from before the wait for the element to be ready.
+        clickedAt = Date.now();
         void this.cursor.ripple(await this.pointer(page));
       },
       release,
@@ -730,41 +738,60 @@ class Session {
       async (page) => {
         const locator = await this.element(page, ref);
         stillWanted();
-        const target = await locator.evaluate(fileInputOf, undefined, { timeout: WAIT_ACTION }).catch((e) => {
+        // The file input the ref is, or labels, as one handle: inspected and given the files, never looked up again (a
+        // label's association may change meanwhile). Playwright does not follow a label to its control itself.
+        const handle = await locator.evaluateHandle(fileInputOf, undefined, { timeout: WAIT_ACTION }).catch((e) => {
           throw actionFailure(e, ref, "uploaded to");
         });
+        try {
+          stillWanted();
+          const input = handle.asElement();
+          if (input) {
+            const target = await input.evaluate(inputState).catch((e) => {
+              throw actionFailure(e, ref, "uploaded to");
+            });
+            stillWanted();
+            await this.aim(page, locator, this.label(page, "Upload", ref));
+            if (target.directory) throw folderPicker(ref);
+            if (payloads.length > 1 && !target.multiple) throw singleFile(ref, payloads.length);
+            sendable(page);
+            this.acting();
+            if (!(await input.evaluate(connectedNow).catch(() => false))) throw staleInput(ref);
+            // A step may have outlasted the call, or the tab moved meanwhile: checked again right before sending.
+            stillWanted();
+            sendable(page);
+            await input.setInputFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
+              throw actionFailure(e, ref, "uploaded to");
+            });
+            assigned = true;
+            return;
+          }
+        } finally {
+          await handle.dispose().catch(() => {});
+        }
         stillWanted();
         await this.aim(page, locator, this.label(page, "Upload", ref));
-        if (target) {
-          if (target.directory) throw folderPicker(ref);
-          if (payloads.length > 1 && !target.multiple) throw singleFile(ref, payloads.length);
-          sendable(page);
-          stillWanted();
-          this.acting();
-          // Playwright does not follow a label to its control: the input itself is given the files.
-          const input = (await locator.evaluateHandle(fileControlOf, undefined, { timeout: WAIT_ACTION })).asElement();
-          if (!input) throw gone(ref);
-          await input.setInputFiles(payloads, { timeout: WAIT_ACTION }).catch((e) => {
-            throw actionFailure(e, ref, "uploaded to");
-          });
-          assigned = true;
-          return;
-        }
         capture = await ChooserCapture.arm(page);
         const armed = capture;
         stop = whenAbandoned(() => void armed.release());
         stillWanted();
         this.acting();
-        clickedAt = Date.now();
         await locator.click({ timeout: WAIT_ACTION }).catch((e) => {
           throw actionFailure(e, ref, "clicked");
         });
+        // The window counts from the click itself, not from before the wait for the element to be ready.
+        clickedAt = Date.now();
         void this.cursor.ripple(await this.pointer(page));
         const chooser = await capture.first(clickedAt + UPLOAD_CHOOSER_MS - Date.now());
         stillWanted();
         if (!chooser) return;
         if (payloads.length > 1 && !chooser.isMultiple()) {
           refused = `the file chooser it opened takes one file, and ${payloads.length} were given, so it keeps what it had`;
+          return;
+        }
+        // Its input may be gone (a page that removes it once the chooser is open): files set on it reach no form.
+        if (!(await chooser.element().evaluate(connectedNow).catch(() => false))) {
+          refused = "the file input of the chooser it opened is no longer on the page";
           return;
         }
         const place = offList(chooser.page().url());

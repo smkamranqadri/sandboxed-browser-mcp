@@ -59,10 +59,10 @@ const names = (payloads) => payloads.map((p) => `${p.name}:${p.mimeType}:${p.buf
  * The element the ref points at, as the page-side check (tools.ts fileInputOf, run here on it) sees it; what a click on
  * it does (a chooser now or after `delay` ms, multiple or not, on a page at `chooserUrl`; or a new tab).
  */
-const fileInput = ({ multiple = false, directory = false } = {}) => ({ localName: "input", type: "file", multiple, webkitdirectory: directory });
+const fileInput = ({ multiple = false, directory = false, id = "" } = {}) => ({ localName: "input", type: "file", id, multiple, webkitdirectory: directory, isConnected: true });
 const BUTTON = { localName: "button" };
 let element = BUTTON;
-let click = { chooser: false, delay: 0, multiple: false, chooserUrl: "http://allowed.fixture.test/upload", opensTab: false };
+let click = { chooser: false, delay: 0, multiple: false, chooserUrl: "http://allowed.fixture.test/upload", opensTab: false, chooserConnected: true };
 
 const makePage = (start = "http://allowed.fixture.test/upload") => {
   let url = start;
@@ -105,7 +105,13 @@ const makePage = (start = "http://allowed.fixture.test/upload") => {
       if (!intercepting) return void done.push("native dialog");
       const chooserPage = click.chooserUrl === url ? page : { url: () => click.chooserUrl };
       const seen = chooserPage;
-      const chooser = { isMultiple: () => click.multiple, page: () => (click.onChooserPage?.(), seen), setFiles: (payloads) => step(`setFiles ${names(payloads)}`) };
+      const input = { isConnected: click.chooserConnected };
+      const chooser = {
+        isMultiple: () => click.multiple,
+        page: () => (click.onChooserPage?.(), seen),
+        element: () => ({ evaluate: async (fn) => (await step(fn.name), fn(input)) }),
+        setFiles: (payloads) => step(`setFiles ${names(payloads)}`),
+      };
       done.push("chooser");
       for (const l of [...listeners]) l(chooser);
     },
@@ -116,13 +122,20 @@ const makePage = (start = "http://allowed.fixture.test/upload") => {
   return page;
 };
 
+/** Handles the tool holds now: each one it resolves it disposes of, whatever happens. */
+let handlesOpen = 0;
 const locator = {
   count: async () => (await step("find"), 1),
-  evaluate: async (fn) => (await step("inspect"), fn(element)),
-  // The element the files go to, as the page-side lookup (tools.ts fileControlOf, run here) gives it.
+  // The file input the ref is or labels, as the page-side lookup (tools.ts fileInputOf, run here) resolves it, once.
   evaluateHandle: async (fn) => {
+    await step("resolve");
     const to = fn(element);
-    return { asElement: () => to && { setInputFiles: (payloads) => step(`setInputFiles ${to.localName} ${names(payloads)}`) } };
+    handlesOpen++;
+    const input = to && {
+      evaluate: async (f) => (await step(f.name), f(to)),
+      setInputFiles: (payloads) => step(`setInputFiles ${to.localName}${to.id ? `#${to.id}` : ""} ${names(payloads)}`),
+    };
+    return { asElement: () => input, dispose: async () => void handlesOpen-- };
   },
   click: async () => {
     await step("click");
@@ -153,7 +166,8 @@ let sessions = 0;
 beforeEach(async () => {
   current = makePage();
   element = BUTTON;
-  click = { chooser: false, delay: 0, multiple: false, chooserUrl: "http://allowed.fixture.test/upload", opensTab: false };
+  click = { chooser: false, delay: 0, multiple: false, chooserUrl: "http://allowed.fixture.test/upload", opensTab: false, chooserConnected: true };
+  handlesOpen = 0;
   holding = new Set();
   tools = new Map(browserTools(`unit-upload-${++sessions}`).map((d) => [d.name, d]));
   await runCall(() => tools.get("browser_snapshot").execute("call", {})).result;
@@ -162,63 +176,112 @@ beforeEach(async () => {
 
 const upload = (files, ref = "e4") => runCall(() => tools.get("browser_upload").execute("call", { ref, files }));
 const answer = async (files, ref) => (await upload(files, ref).result).content[0].text;
-const clean = () => assert.deepEqual([current.listeners(), current.intercepting()], [0, false]);
+const clean = () => assert.deepEqual([current.listeners(), current.intercepting(), handlesOpen], [0, false, 0]);
 const SAME = "The view looks exactly as before.";
 
 describe("dispatch", () => {
   test("a file input gets the files directly: no click, no chooser capture", async () => {
     element = fileInput();
     assert.equal(await answer(["~/docs/plan.txt"]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "setInputFiles input plan.txt:text/plain:10"]);
+    assert.deepEqual(done, ["find", "resolve", "inputState", "connectedNow", "setInputFiles input plan.txt:text/plain:10"]);
     clean();
   });
 
   test("an input with multiple takes several, in order, each with its path and size", async () => {
     element = fileInput({ multiple: true });
     assert.equal(await answer([PLAN, "~/docs/photo.png"]), `Uploaded to e4: ${PLAN} (10 bytes), ${PHOTO} (1,234 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "setInputFiles input plan.txt:text/plain:10,photo.png:image/png:1234"]);
+    assert.deepEqual(done, ["find", "resolve", "inputState", "connectedNow", "setInputFiles input plan.txt:text/plain:10,photo.png:image/png:1234"]);
     assert.equal(await answer([DOT]), `Uploaded to e4: ${DOT} (1 byte). ${SAME}`);
   });
 
   test("an input without multiple given two is refused and keeps what it had; a folder picker is refused", async () => {
     element = fileInput();
     await assert.rejects(upload([PLAN, PHOTO]).result, /^Error: e4 takes one file, and 2 were given: nothing was assigned, and it keeps what it had\.$/);
-    assert.deepEqual(done, ["find", "inspect"]);
+    assert.deepEqual(done, ["find", "resolve", "inputState"]);
     done.length = 0;
     element = fileInput({ multiple: true, directory: true });
     await assert.rejects(upload([PLAN]).result, /^Error: e4 picks a folder \(webkitdirectory\): folder upload is not supported, and nothing was assigned\.$/);
-    assert.deepEqual(done, ["find", "inspect"]);
+    assert.deepEqual(done, ["find", "resolve", "inputState"]);
+    clean();
   });
 
   test("a label for a file input gets them the same way; a label for something else, or none, is clicked", async () => {
     element = { localName: "label", control: fileInput() };
     assert.equal(await answer([PLAN]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "setInputFiles input plan.txt:text/plain:10"]);
+    assert.deepEqual(done, ["find", "resolve", "inputState", "connectedNow", "setInputFiles input plan.txt:text/plain:10"]);
     for (const other of [{ localName: "label", control: { localName: "input", type: "text" } }, { localName: "label", control: null }, { localName: "input", type: "text" }]) {
       element = other;
       click = { ...click, chooser: true };
       done.length = 0;
       assert.equal(await answer([PLAN]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-      assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "setFiles plan.txt:text/plain:10", "intercept off"], JSON.stringify(other));
+      assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "setFiles plan.txt:text/plain:10", "intercept off"], JSON.stringify(other));
     }
+  });
+
+  test("a label's input is resolved once: a label pointed at another input meanwhile does not move the files", async () => {
+    const intended = fileInput({ id: "intended" });
+    const different = fileInput({ id: "different" });
+    element = { localName: "label", control: intended };
+    holding = new Set(["inputState"]);
+    const call = upload([PLAN]);
+    await waitFor("inputState");
+    element.control = different;
+    letGo("inputState");
+    assert.equal((await call.result).content[0].text, `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
+    assert.deepEqual(done, ["find", "resolve", "inputState", "connectedNow", "setInputFiles input#intended plan.txt:text/plain:10"]);
+    clean();
+  });
+
+  test("an input taken off the page meanwhile is refused, with no new lookup", async () => {
+    const intended = fileInput({ id: "intended" });
+    element = { localName: "label", control: intended };
+    holding = new Set(["inputState"]);
+    const call = upload([PLAN]);
+    await waitFor("inputState");
+    intended.isConnected = false;
+    element.control = fileInput({ id: "replacement" });
+    letGo("inputState");
+    await assert.rejects(call.result, /^Error: The file input of e4 is no longer on the page: nothing was assigned\. Take a new browser_snapshot\.$/);
+    assert.deepEqual(done, ["find", "resolve", "inputState", "connectedNow"]);
+    clean();
+  });
+
+  test("a chooser whose input the page removed is sent nothing, and the answer says so with the changes", async () => {
+    click = { ...click, chooser: true, chooserConnected: false };
+    assert.equal(await answer([PLAN]), `Clicked e4 to upload, and no files were sent: the file input of the chooser it opened is no longer on the page. ${SAME}`);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "intercept off"]);
+    clean();
+  });
+
+  test("the chooser window counts from when the click returns, not from before the element was ready", { timeout: 10_000 }, async () => {
+    // The click waits 2.2 s for its element (longer than the whole window), and its chooser opens 0.8 s after it.
+    click = { ...click, chooser: true, delay: 800 };
+    holding = new Set(["click"]);
+    const call = upload([PLAN]);
+    await waitFor("click");
+    await pause(2200);
+    letGo("click");
+    assert.equal((await call.result).content[0].text, `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "setFiles plan.txt:text/plain:10", "intercept off"]);
+    clean();
   });
 
   test("anything else is clicked once, and the chooser it opens gets the files", async () => {
     click = { ...click, chooser: true };
     assert.equal(await answer(["~/docs/plan.txt"]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "setFiles plan.txt:text/plain:10", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "setFiles plan.txt:text/plain:10", "intercept off"]);
     clean();
   });
 
   test("a chooser a moment after the click is waited for; two files on a chooser that takes one are refused", async () => {
     click = { ...click, chooser: true, delay: 600 };
     assert.equal(await answer(["~/docs/plan.txt"]), `Uploaded to e4: ${PLAN} (10 bytes). ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "setFiles plan.txt:text/plain:10", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "setFiles plan.txt:text/plain:10", "intercept off"]);
     done.length = 0;
     click = { ...click, delay: 0, multiple: false };
     // Refused after the click: said with what the click changed.
     assert.equal(await answer([PLAN, PHOTO]), `Clicked e4 to upload, and no files were sent: the file chooser it opened takes one file, and 2 were given, so it keeps what it had. ${SAME}`);
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "intercept off"]);
     clean();
   });
 
@@ -229,7 +292,7 @@ describe("dispatch", () => {
       `Clicked e4 to upload (it opened no file chooser, so no files were assigned; point browser_upload at the upload control itself: the file input, its label, or the button that opens the chooser). ${SAME}`,
     );
     assert.ok(Date.now() - started >= 1950, String(Date.now() - started));
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "intercept off"]);
     clean();
   });
 
@@ -240,7 +303,7 @@ describe("dispatch", () => {
       text.split("\n")[0],
       "Clicked e4 to upload (no file chooser was caught on this page, upload capture does not reach other tabs, and no files were assigned), which opened a new tab; this session follows that tab now.",
     );
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "intercept off"]);
   });
 });
 
@@ -296,10 +359,42 @@ describe("given up", () => {
     await nextWorks();
   });
 
-  test("while it inspects a file input: nothing sent", async () => {
+  test("while it resolves the input to send to: nothing sent, even once the next call has run", async () => {
     element = fileInput();
-    assert.deepEqual(await abandonDuring("inspect"), []);
+    holding = new Set(["resolve"]);
+    const call = upload(["~/docs/plan.txt"]);
+    await waitFor("resolve");
+    call.abandon();
+    // The time limit has answered; the next call runs (a direct upload holds no chooser to wait for).
+    holding = new Set();
+    done.length = 0;
+    assert.equal(await answer(["~/docs/photo.png"], "e5"), `Uploaded to e5: ${PHOTO} (1,234 bytes). ${SAME}`);
+    holds.get("resolve")();
+    holds.delete("resolve");
+    await assert.rejects(call.result, /^Error: This call ran past its time limit and was abandoned\.$/);
+    assert.deepEqual(done.filter((d) => d.startsWith("setInputFiles")), ["setInputFiles input photo.png:image/png:1234"]);
+  });
+
+  test("while it inspects the file input: nothing sent", async () => {
+    element = fileInput();
+    assert.deepEqual(await abandonDuring("inputState"), []);
     await nextWorks();
+  });
+
+  test("while its input is checked once more, just before sending: nothing sent, even once the next call has run", async () => {
+    element = fileInput();
+    holding = new Set(["connectedNow"]);
+    const call = upload(["~/docs/plan.txt"]);
+    await waitFor("connectedNow");
+    call.abandon();
+    holding = new Set();
+    done.length = 0;
+    assert.equal(await answer(["~/docs/photo.png"], "e5"), `Uploaded to e5: ${PHOTO} (1,234 bytes). ${SAME}`);
+    holds.get("connectedNow")();
+    holds.delete("connectedNow");
+    await assert.rejects(call.result, /^Error: This call ran past its time limit and was abandoned\.$/);
+    assert.deepEqual(done.filter((d) => d.startsWith("setInputFiles")), ["setInputFiles input photo.png:image/png:1234"]);
+    clean();
   });
 
   test("during the click: released at once, no files to the late chooser, no second click", async () => {
@@ -313,7 +408,7 @@ describe("given up", () => {
     click = { ...click, chooser: true, onChooserPage: () => call.abandon() };
     call = upload(["~/docs/plan.txt"]);
     await assert.rejects(call.result, /^Error: This call ran past its time limit and was abandoned\.$/);
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "intercept off"]);
     clean();
     click = { ...click, onChooserPage: undefined };
     await nextWorks();
@@ -327,7 +422,7 @@ describe("given up", () => {
     call.abandon();
     await assert.rejects(call.result, /abandoned/);
     await pause(500);
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "intercept off", "native dialog"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "intercept off", "native dialog"]);
     clean();
     await nextWorks();
   });
@@ -348,13 +443,25 @@ describe("with an allowlist", () => {
 
   test("a tab that moved off the allowed hosts before a file input is given its files is sent nothing", async () => {
     element = fileInput();
-    holding = new Set(["inspect"]);
+    holding = new Set(["inputState"]);
     const call = upload(["~/docs/plan.txt"]);
-    await waitFor("inspect");
+    await waitFor("inputState");
     current.moveTo("http://blocked.example.net/upload");
-    letGo("inspect");
+    letGo("inputState");
     await assert.rejects(call.result, /^Error: The tab is on blocked\.example\.net, which is not an allowed host \(BROWSER_ALLOWED_HOSTS\): no files were sent to it\.$/);
-    assert.deepEqual(done, ["find", "inspect"]);
+    assert.deepEqual(done, ["find", "resolve", "inputState"]);
+  });
+
+  test("a tab that moved off the allowed hosts while its input was checked once more is sent nothing", async () => {
+    element = fileInput();
+    holding = new Set(["connectedNow"]);
+    const call = upload(["~/docs/plan.txt"]);
+    await waitFor("connectedNow");
+    current.moveTo("http://blocked.example.net/upload");
+    letGo("connectedNow");
+    await assert.rejects(call.result, /^Error: The tab is on blocked\.example\.net, which is not an allowed host \(BROWSER_ALLOWED_HOSTS\): no files were sent to it\.$/);
+    assert.deepEqual(done, ["find", "resolve", "inputState", "connectedNow"]);
+    clean();
   });
 
   test("a chooser on a page off the allowed hosts is sent nothing", async () => {
@@ -363,7 +470,7 @@ describe("with an allowlist", () => {
       await answer(["~/docs/plan.txt"]),
       `Clicked e4 to upload, and no files were sent: the chooser's tab is on blocked.example.net, which is not an allowed host (BROWSER_ALLOWED_HOSTS). ${SAME}`,
     );
-    assert.deepEqual(done, ["find", "inspect", "intercept on", "click", "chooser", "intercept off"]);
+    assert.deepEqual(done, ["find", "resolve", "intercept on", "click", "chooser", "connectedNow", "intercept off"]);
     clean();
   });
 });

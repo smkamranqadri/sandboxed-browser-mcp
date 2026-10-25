@@ -20,12 +20,12 @@ import { ToolError } from "./errors.js";
 /** How long a release waits for the browser to confirm, and then for the connection to close (tests shorten it). */
 export const RELEASE_LIMIT = { ms: 10_000 };
 
-/** Whether `work` ended within `ms`; it is not waited for after that. */
-async function within(work: Promise<unknown>, ms: number): Promise<boolean> {
+/** How `work` ended within `ms`: done, failed, or not yet (it is not waited for after that). */
+async function within(work: Promise<unknown>, ms: number): Promise<"done" | "failed" | "late"> {
   let timer: NodeJS.Timeout | undefined;
-  const late = new Promise<false>((resolve) => (timer = setTimeout(() => resolve(false), ms)));
+  const late = new Promise<"late">((resolve) => (timer = setTimeout(() => resolve("late"), ms)));
   try {
-    return await Promise.race([work.then(() => true, () => true), late]);
+    return await Promise.race([work.then(() => "done" as const, () => "failed" as const), late]);
   } finally {
     clearTimeout(timer);
   }
@@ -48,7 +48,10 @@ const intercept = (page: Page, enabled: boolean): Promise<void> =>
 export class ChooserCapture {
   /** The choosers caught so far, in order. */
   readonly caught: FileChooser[] = [];
+  /** Ends a wait in first() (a chooser came, or the capture was released). */
   private wake: (() => void) | undefined;
+  /** Ends a wait in hold() (the capture was released only). */
+  private unhold: (() => void) | undefined;
   private readonly listener = (chooser: FileChooser) => {
     this.caught.push(chooser);
     this.wake?.();
@@ -67,7 +70,7 @@ export class ChooserCapture {
     const capture = new ChooserCapture(page);
     try {
       const on = intercept(page, true);
-      if (!(await within(on, RELEASE_LIMIT.ms))) throw new ToolError("The browser did not answer in time, so nothing was clicked. Try again, or tell the user.");
+      if ((await within(on, RELEASE_LIMIT.ms)) === "late") throw new ToolError("The browser did not answer in time, so nothing was clicked. Try again, or tell the user.");
       await on;
     } catch (e) {
       await capture.release();
@@ -91,22 +94,37 @@ export class ChooserCapture {
     return this.caught[0] ?? null;
   }
 
+  /** Stays armed until `ms` from now, choosers caught or not; ends early only when released. */
+  async hold(ms: number): Promise<void> {
+    if (this.released || ms <= 0) return;
+    let timer: NodeJS.Timeout | undefined;
+    await new Promise<void>((resolve) => {
+      this.unhold = resolve;
+      timer = setTimeout(resolve, ms);
+    });
+    clearTimeout(timer);
+    this.unhold = undefined;
+  }
+
   /**
    * Interception off on the page and its frames, confirmed, and only then the listener removed (removing it first would
    * have Playwright switch interception off unawaited, and this call's own switch would then find nothing to wait for).
-   * The same promise for every caller; it does not reject: a page that closed has no interception left, and a browser
-   * that does not answer in time loses this connection, and the interception with it.
+   * The same promise for every caller; it does not reject: a page that closed has no interception left, and when the
+   * switch fails or is not answered in time on a page still open, this connection is dropped, and the interception
+   * with it.
    */
   release(): Promise<void> {
     this.released ??= (async () => {
       this.wake?.();
+      this.unhold?.();
       let switched: Promise<void>;
       try {
         switched = intercept(this.page, false);
       } catch (e) {
         switched = Promise.reject(e);
       }
-      if (!(await within(switched, RELEASE_LIMIT.ms))) await within(link.release(), RELEASE_LIMIT.ms);
+      // Not switched off, and the page still there: this connection goes, and its interception with it.
+      if ((await within(switched, RELEASE_LIMIT.ms)) !== "done" && !this.page.isClosed()) await within(link.release(), RELEASE_LIMIT.ms);
       try {
         this.page.off("filechooser", this.listener);
       } catch {
