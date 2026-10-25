@@ -169,6 +169,22 @@ ${Array.from({ length: 80 }, (_, i) => `<p style="margin:0;padding:8px 0">Ledger
 
   "/hang": () => page("Hang", `<h1>Hang</h1><script>for (;;) {}</script>`),
 
+  // A button that opens the chooser of a hidden file input; the page counts the clicks, the files the input holds and
+  // the times a chooser was dismissed (a native dialog closed with Escape fires "cancel"; a caught chooser does not).
+  "/chooser": () =>
+    page(
+      "Seed photos",
+      `<h1>Seed photos</h1><input type="file" id="photo" hidden><button id="pick">Choose a photo</button>
+<p>Clicks: <span id="clicks">0</span></p><p>Files: <span id="files">none</span></p><p>Dismissed: <span id="cancels">0</span></p>`,
+      `<script>addEventListener("DOMContentLoaded", () => {
+  const photo = document.getElementById("photo");
+  const count = (id) => (document.getElementById(id).textContent = String(Number(document.getElementById(id).textContent) + 1));
+  document.getElementById("pick").addEventListener("click", () => (count("clicks"), photo.click()));
+  photo.addEventListener("change", () => (document.getElementById("files").textContent = [...photo.files].map((f) => f.name).join(", ") || "none"));
+  photo.addEventListener("cancel", () => count("cancels"));
+});</script>`,
+    ),
+
   "/hostile": () =>
     page(
       "Seed swap notes",

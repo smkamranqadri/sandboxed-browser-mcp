@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Browser, BrowserContext, Locator, Page, Request } from "playwright-core";
 import { cdpUrl } from "./cdp.js";
+import { ChooserCapture, settledChoosers } from "./chooser.js";
 import { link } from "./connection.js";
 import { Cursor, cursorEnabled } from "./cursor.js";
 import { ToolError } from "./errors.js";
@@ -37,25 +38,41 @@ export interface ToolDef {
 // ---- Calls that run past their time limit --------------------------------------------------------------------------
 
 const ABANDONED = "This call ran past its time limit and was abandoned.";
-const calls = new AsyncLocalStorage<{ abandoned: boolean }>();
+const calls = new AsyncLocalStorage<{ abandoned: boolean; onAbandon: Set<() => void> }>();
 
 /** Throws when the call this runs in was given up at its time limit: a tool checks it before each step in the browser. */
 export function stillWanted(): void {
   if (calls.getStore()?.abandoned) throw new ToolError(ABANDONED);
 }
 
+/** Whether the call this runs in is still wanted, without throwing. */
+const stillWantedNow = (): boolean => !calls.getStore()?.abandoned;
+
+/** Runs `fn` if the call this runs in is given up while it waits on something; returns what stops that. */
+function whenAbandoned(fn: () => void): () => void {
+  const call = calls.getStore();
+  call?.onAbandon.add(fn);
+  return () => void call?.onAbandon.delete(fn);
+}
+
 /**
  * Runs one call's work so that it can be given up: after `abandon()` its next step (`stillWanted()`) throws, so a late
- * call takes no further step in the browser, and its result is a failure even if it got to the end.
+ * call takes no further step in the browser, and its result is a failure even if it got to the end. The work starts
+ * once every file chooser capture of an earlier call, given up or not, is confirmed released (chooser.ts).
  */
 export function runCall<T>(work: () => Promise<T>): { result: Promise<T>; abandon: () => void } {
-  const call = { abandoned: false };
+  const call = { abandoned: false, onAbandon: new Set<() => void>() };
   const result = calls.run(call, async () => {
+    await settledChoosers();
     const value = await work();
     stillWanted();
     return value;
   });
-  return { result, abandon: () => void (call.abandoned = true) };
+  const abandon = () => {
+    call.abandoned = true;
+    for (const fn of call.onAbandon) fn();
+  };
+  return { result, abandon };
 }
 
 /** Lets go of the browser (it and its tabs stay) and stops the guard, as the server stops. */
@@ -68,6 +85,8 @@ export async function disconnect(): Promise<void> {
 
 /** How long an action waits for its element to be ready (enabled, visible, not covered). */
 const WAIT_ACTION = 10_000;
+/** How long after a click a file chooser it opens is still caught, at least (the capture stays armed while the page settles). */
+const CLICK_CHOOSER_MS = 1000;
 /** How long a navigation may take to load. */
 const WAIT_LOAD = 30_000;
 
@@ -445,9 +464,10 @@ class Session {
   /**
    * One action on the followed tab. `action` does it; then the page is given a moment to settle, and the answer says
    * what changed on screen, or shows the page the tab went to, or the tab the action opened, or says that it was
-   * blocked and the tab put back.
+   * blocked and the tab put back. `settled`, when given, runs once the page has settled or the action failed or was
+   * given up, before anything else; `what` may be worked out only then.
    */
-  async perform(what: string, action: (page: Page) => Promise<void>): Promise<string> {
+  async perform(what: string | (() => string), action: (page: Page) => Promise<void>, settled?: () => Promise<void>): Promise<string> {
     const page = await this.usableTab();
     const own = channel(page);
     own.catch(() => {});
@@ -468,7 +488,9 @@ class Session {
       await calm(page);
     } finally {
       lookout.end();
+      await settled?.();
     }
+    if (typeof what === "function") what = what();
     void this.cursor.done(await this.pointer(page));
     stillWanted();
     const refusals = takeRefusals();
@@ -604,21 +626,50 @@ class Session {
     return this.show(page, mode);
   }
 
+  /**
+   * A click, with any file chooser it opens on this tab caught (no native dialog) and given no files, so that an earlier
+   * selection stays; the answer points to browser_upload instead.
+   */
   async click(given: string, double: boolean): Promise<string> {
     const ref = checkRef(given);
-    return this.perform(`${double ? "Double-clicked" : "Clicked"} ${ref}`, async (page) => {
-      const locator = await this.element(page, ref);
-      await this.aim(page, locator, this.label(page, double ? "Double-click" : "Click", ref));
-      stillWanted();
-      this.acting();
-      try {
-        if (double) await locator.dblclick({ timeout: WAIT_ACTION });
-        else await locator.click({ timeout: WAIT_ACTION });
-      } catch (e) {
-        throw actionFailure(e, ref, double ? "double-clicked" : "clicked");
-      }
-      void this.cursor.ripple(await this.pointer(page));
-    });
+    const done = `${double ? "Double-clicked" : "Clicked"} ${ref}`;
+    let capture: ChooserCapture | undefined;
+    let clickedAt = 0;
+    // Given up, the capture goes at once, not when a late click or the chooser window ends: the next call waits for it.
+    let stop = () => {};
+    const release = async () => {
+      if (!capture) return;
+      if (stillWantedNow()) await capture.first(clickedAt + CLICK_CHOOSER_MS - Date.now());
+      stop();
+      await capture.release();
+    };
+    const what = () =>
+      capture?.caught.length
+        ? `${done}, which opens a file chooser: it was caught, so no dialog opened and no file was chosen. To attach files, use browser_upload on ${ref}`
+        : done;
+    return this.perform(
+      what,
+      async (page) => {
+        const locator = await this.element(page, ref);
+        await this.aim(page, locator, this.label(page, double ? "Double-click" : "Click", ref));
+        stillWanted();
+        capture = await ChooserCapture.arm(page);
+        const armed = capture;
+        stop = whenAbandoned(() => void armed.release());
+        stillWanted();
+        this.acting();
+        clickedAt = Date.now();
+        try {
+          if (double) await locator.dblclick({ timeout: WAIT_ACTION });
+          else await locator.click({ timeout: WAIT_ACTION });
+        } catch (e) {
+          clickedAt = 0;
+          throw actionFailure(e, ref, double ? "double-clicked" : "clicked");
+        }
+        void this.cursor.ripple(await this.pointer(page));
+      },
+      release,
+    );
   }
 
   async type(given: string, text: string, submit: boolean): Promise<string> {

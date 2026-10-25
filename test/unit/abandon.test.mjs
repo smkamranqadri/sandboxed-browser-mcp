@@ -57,6 +57,14 @@ const makePage = () => {
   waitForTimeout: async () => {},
   waitForLoadState: async () => {},
   bringToFront: async () => {},
+  // File chooser capture around a click (chooser.ts; its own tests are chooser.test.mjs): nothing to catch here.
+  _channel: { updateSubscription: async () => {} },
+  on() {
+    return this;
+  },
+  off() {
+    return this;
+  },
   };
 };
 let current = makePage();
