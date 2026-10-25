@@ -103,6 +103,27 @@ const uploadPage = (title, body, script = "", { hidden = false } = {}) =>
     `<script>${sha256}\n(${uploadKit})();\naddEventListener("DOMContentLoaded", () => {\n  ${script}\n});</script>`,
   );
 
+/**
+ * The pop-up's page, in two parts: everything up to its end, its controls wired by inline scripts (so they work while
+ * it loads), and the end, sent only on /__release. Until then the document does not finish loading, which holds
+ * anything waiting for it (an upload whose click opened the pop-up waits for the new tab's DOMContentLoaded).
+ */
+const heldPopup = () => {
+  const whole = uploadPage(
+    "Photo window",
+    `<label for="pop">Photo</label> <input type="file" id="pop"><button id="here">Choose a photo here</button><p>Dismissed: <span id="cancels">0</span></p>
+<script>
+  const pop = document.getElementById("pop");
+  document.getElementById("here").addEventListener("click", () => pop.click());
+  pop.addEventListener("cancel", () => bump("cancels"));
+</script>`,
+  );
+  const end = whole.lastIndexOf("</body>");
+  return [whole.slice(0, end), whole.slice(end)];
+};
+/** Pop-up pages being served, each waiting for its end. */
+let held = [];
+
 const routes = {
   "/": () =>
     page(
@@ -300,16 +321,9 @@ ${Array.from({ length: 80 }, (_, i) => `<p style="margin:0;padding:8px 0">Ledger
     ),
 
   // A button that opens a pop-up, whose own page has a file input and a button opening its chooser. A pop-up cannot
-  // open a chooser on its opener's click (Chromium gives it no user activation): a click inside it has to.
+  // open a chooser on its opener's click (Chromium gives it no user activation): a click inside it has to. The pop-up's
+  // page is served held (heldPopup, below): usable at once, but not finished until /__release.
   "/upload/popup": () => uploadPage("Seed pop-up", `<button onclick="window.open('/upload/popup-input')">Open the photo window</button>`),
-  "/upload/popup-input": () =>
-    uploadPage(
-      "Photo window",
-      `<label for="pop">Photo</label> <input type="file" id="pop"><button id="here">Choose a photo here</button><p>Dismissed: <span id="cancels">0</span></p>`,
-      `const pop = document.getElementById("pop");
-  document.getElementById("here").addEventListener("click", () => pop.click());
-  pop.addEventListener("cancel", () => bump("cancels"));`,
-    ),
 
   // A file input in an open shadow root, with its label there too.
   "/upload/shadow": () =>
@@ -427,6 +441,12 @@ const server = createServer((req, res) => {
     hits = { allowed: [], blocked: [] };
     return res.end("reset");
   }
+  if (url.pathname === "/__release") {
+    const count = held.length;
+    for (const [response, end] of held) response.end(end);
+    held = [];
+    return res.end(String(count));
+  }
   (host === "blocked.fixture.test" ? hits.blocked : hits.allowed).push(req.url);
 
   if (url.pathname === "/bounce") {
@@ -440,6 +460,13 @@ const server = createServer((req, res) => {
   if (url.pathname === "/leaving") {
     res.writeHead(204, { "access-control-allow-origin": "*" });
     return res.end();
+  }
+  if (url.pathname === "/upload/popup-input") {
+    const [start, end] = heldPopup();
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    res.write(start);
+    held.push([res, end]);
+    return;
   }
   const cursor = url.pathname.match(/^\/cursor\/(\d+)$/);
   const route = cursor ? () => cursorPage(Number(cursor[1])) : routes[url.pathname];

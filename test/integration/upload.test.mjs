@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, linkSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { CDP, CONTAINER, closeObservers, closeTabs, connectMcp, fixture, observe, refOf, tabs } from "./helpers.mjs";
+import { CDP, CONTAINER, FIXTURE_PORT, closeObservers, closeTabs, connectMcp, fixture, observe, refOf, tabs } from "./helpers.mjs";
 
 /**
  * browser_upload against the real browser and the fixture site's upload pages (plan-file-upload.md, acceptance 2 to 5
@@ -220,22 +220,24 @@ describe("controls that open no chooser here (acceptance 5)", () => {
 
   test("a button that opens a pop-up, whose chooser is opened there: capture does not reach it, nothing is sent, the call ends", { timeout: 60_000 }, async () => {
     const ref = await open(mcp, "/upload/popup", /^button "Open the photo window" \[/);
-    const started = Date.now();
     let answered = false;
     const uploading = mcp.call("browser_upload", { ref, files: [LIST] }).finally(() => (answered = true));
-    // While the upload is in flight, a click inside the pop-up (another connection's, trusted, as a person's would be)
-    // opens the pop-up's own chooser; its opener's click cannot (Chromium gives the pop-up no user activation from it).
+    // The pop-up's page is held by the fixture before its end (usable, not finished), and the upload, having followed
+    // the new tab, waits for it to finish loading: what follows happens while the upload is in flight, by design.
     const popup = await observed(fixture.url("/upload/popup-input"));
-    await popup.waitForLoadState("load");
+    await popup.waitForSelector("#here");
+    // A click inside the pop-up (another connection's, trusted, as a person's would be) opens the pop-up's own chooser;
+    // its opener's click cannot (Chromium gives the pop-up no user activation from it).
     await popup.click("#here");
-    // It opened natively (capture does not reach the pop-up): Escape on the desktop closes it, and the pop-up counts that,
-    // still while the upload is in flight. (Once the session has moved to the pop-up, Escape no longer reaches a dialog
-    // there in this container's desktop, so it is closed now.)
-    for (const deadline = Date.now() + 3000; (await popup.textContent("#cancels")) === "0" && Date.now() < deadline; await pause(300)) escape();
+    // It opened natively (capture does not reach the pop-up): Escape on the desktop closes it, and the pop-up counts that.
+    for (const deadline = Date.now() + 5000; (await popup.textContent("#cancels")) === "0" && Date.now() < deadline; await pause(300)) escape();
     assert.equal(await popup.textContent("#cancels"), "1");
-    assert.equal(answered, false, "the pop-up's chooser opened and closed while the upload was in flight");
+    assert.equal(answered, false, "held on the pop-up's loading");
+    // Let the pop-up's page finish: the upload answers within a bound.
+    const released = Date.now();
+    assert.equal(await (await fetch(`http://127.0.0.1:${FIXTURE_PORT}/__release`)).text(), "1");
     const answer = inner(await uploading);
-    assert.ok(Date.now() - started < 15_000, `answered in ${Date.now() - started} ms`);
+    assert.ok(Date.now() - released < 10_000, `answered ${Date.now() - released} ms after the release`);
     assert.equal(
       answer.split("\n")[0],
       `Clicked ${ref} to upload (no file chooser was caught on this page, upload capture does not reach other tabs, and no files were assigned), which opened a new tab; this session follows that tab now.`,
