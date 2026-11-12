@@ -18,6 +18,17 @@ Proof, profiles (2026-11-12, Linux):
   one integration failure (guard.test.mjs "once loaded", tab url empty); it did not repeat. Likely cause: /json/list read
   right after the page was put back (the test now waits for the settled address); not proven, and the test stack was
   possibly shared with another worktree.
+- Real client session (2026-11-12, Linux): Claude Code 2.1.322 with Sonnet 5.5 (`claude -p`, MCP config naming
+  dist/server.js and a temp profiles.json with `default` = test stack CDP 9422, any host, and `other` = test-b stack
+  CDP 9423, hosts allowed.fixture.test). Only the test stacks; not the installed copy. Observed in the tool log: the
+  model passed `profile` itself; cookie set in default was `seed=alpha` there and `none` in other; refs of other were
+  `[f3e5@other]`, default's plain `[f4e5]`; default's `f4e14` used with other was refused ("has no profile tag, so it
+  is a ref of the default profile…"), `f3e14@other` used with default was refused ("is a ref of profile other…"); the
+  same ref worked in its own profile; `blocked.fixture.test/secret` opened in default and was refused in other
+  ("not an allowed host (BROWSER_ALLOWED_HOSTS: allowed.fixture.test)"). A second session with a single-profile
+  client (no profiles.json, BROWSER_CDP_URL) saw plain refs (`[f1e14]`) and its click worked. Not checked: Codex or
+  pi sessions with two profiles; a fenced non-default profile's Chromium policy; macOS and Windows. The model first
+  called the fence gap on default "a gap"; that is by design (default had no hosts list).
 - Review fixes (2026-11-12): profiles.json path with fileURLToPath (space/non-ASCII install dir); refs carry the profile
   tag when a client has several profiles; a client entry's BROWSER_ALLOWED_HOSTS that differs from profiles.json is a
   failure to start; kept volumes are recorded (.kept-profiles) and purged; `test-*` reserved; duplicate cdpPort
