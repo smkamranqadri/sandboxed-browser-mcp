@@ -47,11 +47,21 @@ jobs:
           umask 077
           printf 'BROWSER_PASSWORD=%s\nBROWSER_WEB_PORT=3201\nBROWSER_CDP_PORT=9422\nBROWSER_STREAM_PORT=8182\nFIXTURE_PORT=3299\n' \
             "$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > docker/.env.test
+      - name: Second test stack settings (profile tests; a throwaway password, never printed)
+        run: |
+          umask 077
+          printf 'BROWSER_PASSWORD=%s\nBROWSER_WEB_PORT=3202\nBROWSER_CDP_PORT=9423\nBROWSER_STREAM_PORT=8183\nFIXTURE_PORT=3298\n' \
+            "$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > docker/.env.test-b
       - run: npm run stack:test:up
+      - run: npm run stack:test-b:up
       - run: npm run test:integration
       - name: Stack logs
         if: failure()
-        run: docker compose -p sandboxed-browser-mcp-test --env-file docker/.env.test -f docker/compose.yaml -f docker/compose.test.yaml logs --tail 200
+        run: |
+          docker compose -p sandboxed-browser-mcp-test --env-file docker/.env.test -f docker/compose.yaml -f docker/compose.test.yaml logs --tail 200
+          docker compose -p sandboxed-browser-mcp-test-b --env-file docker/.env.test-b -f docker/compose.yaml -f docker/compose.test.yaml logs --tail 200
       - name: Stop the stack
         if: always()
-        run: npm run stack:test:down
+        run: |
+          npm run stack:test-b:down
+          npm run stack:test:down

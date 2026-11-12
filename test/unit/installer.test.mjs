@@ -77,6 +77,21 @@ const firstFree = async (from, taken = []) => {
   for (let p = from; ; p++) if (!taken.includes(p) && !(await listening(p))) return p;
 };
 
+// The installer starts looking at 3101, 9322 and 8082. Hold them for the whole file, so the expected ports do not
+// depend on whether the machine already runs a stack there (a developer's does, a CI runner does not).
+const held = [];
+before(async () => {
+  for (const port of [3101, 9322, 8082]) {
+    const s = net.createServer();
+    const ok = await new Promise((resolve) => s.once("error", () => resolve(false)).listen(port, "127.0.0.1", () => resolve(true)));
+    if (ok) held.push(s);
+  }
+});
+after(() => held.forEach((s) => s.close()));
+test("the installer's start ports are all taken while these tests run", async () => {
+  for (const port of [3101, 9322, 8082]) assert.ok(await listening(port), String(port));
+});
+
 test("a bad profile name fails before any docker call and creates nothing", () => {
   const dir = scratch("names");
   for (const bad of ["Work", "a b", "../x", "default", "test", "test-b", "test-x", "a".repeat(25), "1work", "work_2", ""]) {

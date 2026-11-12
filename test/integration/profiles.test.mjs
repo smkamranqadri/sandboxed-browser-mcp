@@ -41,9 +41,10 @@ before(async () => {
 });
 after(async () => {
   await mcp?.close();
-  rmSync(dir, { recursive: true, force: true });
-  await closeTabs(1);
-  await closeOtherTabs(1);
+  if (dir) rmSync(dir, { recursive: true, force: true });
+  // Nothing to tidy when the first stack or the second one never came up.
+  await closeTabs(1).catch(() => {});
+  await closeOtherTabs(1).catch(() => {});
 });
 
 test("the server lists the same twelve tools, each with the optional profile argument", async () => {
