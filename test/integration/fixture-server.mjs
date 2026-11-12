@@ -449,6 +449,12 @@ const server = createServer((req, res) => {
   }
   (host === "blocked.fixture.test" ? hits.blocked : hits.allowed).push(req.url);
 
+  // Cookies, for the profile tests: /cookie/set?v=X stores one, /cookie/show shows what the browser sent back, /cookie/clear drops it.
+  if (url.pathname === "/cookie/set" || url.pathname === "/cookie/show" || url.pathname === "/cookie/clear") {
+    const value = (url.searchParams.get("v") || "").replace(/[^a-z0-9-]/g, "");
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...(url.pathname === "/cookie/set" ? { "set-cookie": `seed=${value}; Path=/; Max-Age=3600` } : url.pathname === "/cookie/clear" ? { "set-cookie": "seed=; Path=/; Max-Age=0" } : {}) });
+    return res.end(page("Cookie jar", `<h1>Cookie jar</h1><p>Cookie seen by the server: ${(req.headers.cookie || "none").replace(/[<&]/g, "")}</p>`));
+  }
   if (url.pathname === "/bounce") {
     res.writeHead(302, { location: BLOCKED });
     return res.end();

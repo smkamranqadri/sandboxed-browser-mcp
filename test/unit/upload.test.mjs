@@ -157,6 +157,8 @@ describe("the denylist", () => {
       ".local/share/keyrings/login.keyring", ".mozilla/firefox/profiles.ini", ".config/google-chrome/Local State",
       ".config/chromium/Local State", ".config/BraveSoftware/Brave-Browser/Local State", ".claude/settings.json",
       ".codex/auth.json", ".local/share/sandboxed-browser-mcp/docker/.env", "projects/old/.ssh/config",
+      // The other profiles' env files (their passwords) and the profile list sit in the same folder.
+      ".local/share/sandboxed-browser-mcp/profiles/work/.env", ".local/share/sandboxed-browser-mcp/profiles.json",
     ]) {
       put(rel);
       await refused([`~/${rel}`], "denied location");

@@ -3,4 +3,4 @@ node_modules/
 dist/
 .env
 docker/.env
-docker/.env.test
+docker/.env.test*

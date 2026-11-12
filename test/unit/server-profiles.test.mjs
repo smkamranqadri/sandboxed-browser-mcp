@@ -1,0 +1,73 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+/** The built server (dist/server.js) started with a profiles.json: what it lists, what it says, and when it refuses to start. No browser. */
+
+const SERVER = path.resolve(import.meta.dirname, "../../dist/server.js");
+const dir = mkdtempSync(path.join(tmpdir(), "sbm-server-profiles-"));
+const good = path.join(dir, "profiles.json");
+writeFileSync(good, JSON.stringify({ profiles: [{ name: "default", cdpPort: 9, hosts: [] }, { name: "work", cdpPort: 9, hosts: ["docs.example.com"] }, { name: "personal", cdpPort: 9, hosts: [] }] }));
+const broken = path.join(dir, "broken.json");
+writeFileSync(broken, '{"profiles":[{"name":"Work","cdpPort":9,"hosts":[]}]}');
+
+const env = (extra) => ({ PATH: process.env.PATH, ...extra });
+
+test("the server refuses to start on a profiles.json it cannot read, or a BROWSER_PROFILES that names no profile", () => {
+  for (const [extra, pattern] of [
+    [{ BROWSER_PROFILES_FILE: broken }, /^sandboxed-browser-mcp: .*broken\.json: profile 1 has no valid name/],
+    [{ BROWSER_PROFILES_FILE: path.join(dir, "profiles.json"), BROWSER_PROFILES: "ghost" }, /^sandboxed-browser-mcp: BROWSER_PROFILES names "ghost", which is not a profile \(profiles: default, work, personal\)\n$/],
+    [{ BROWSER_PROFILES_FILE: good, BROWSER_PROFILES: "Work" }, /^sandboxed-browser-mcp: BROWSER_PROFILES: "Work" is not a valid profile name\n$/],
+  ]) {
+    const r = spawnSync(process.execPath, [SERVER], { env: env(extra), input: "", encoding: "utf8", timeout: 10_000 });
+    assert.equal(r.status, 1, JSON.stringify(extra));
+    assert.match(r.stderr, pattern);
+    assert.equal(r.stdout, "", "nothing on the protocol stream");
+  }
+});
+
+test("a client limited to one profile lists only that profile, and is told about it; stderr names each profile's browser and hosts", async () => {
+  const transport = new StdioClientTransport({ command: process.execPath, args: [SERVER], env: env({ BROWSER_PROFILES_FILE: good, BROWSER_PROFILES: "work,personal" }), stderr: "pipe" });
+  const stderr = [];
+  const client = new Client({ name: "unit", version: "0.0.0" });
+  await client.connect(transport);
+  transport.stderr?.on("data", (d) => stderr.push(String(d)));
+  try {
+    const { tools } = await client.listTools();
+    assert.equal(tools.length, 12);
+    for (const t of tools) assert.match(t.inputSchema.properties.profile.description, /Profiles: work, personal\.$/, t.name);
+    assert.match(client.getInstructions(), /Browser profiles keep separate signed-in sessions \(work, personal\)\./);
+    const refused = await client.callTool({ name: "browser_snapshot", arguments: { profile: "default" } });
+    assert.equal(refused.isError, true);
+    assert.equal(refused.content[0].text, 'Profile "default" is not available to this client (BROWSER_PROFILES). Profiles: work, personal.');
+    const omitted = await client.callTool({ name: "browser_snapshot", arguments: {} });
+    assert.match(omitted.content[0].text, /^This client may not use the "default" profile/);
+    const unknown = await client.callTool({ name: "browser_snapshot", arguments: { profile: "nope" } });
+    assert.equal(unknown.content[0].text, 'There is no profile "nope". Profiles: work, personal.');
+    await new Promise((r) => setTimeout(r, 200));
+    const text = stderr.join("");
+    assert.match(text, /profile default \(not for this client\): browser at http:\/\/127\.0\.0\.1:9; any host allowed/);
+    assert.match(text, /profile work: browser at http:\/\/127\.0\.0\.1:9; allowed hosts: docs\.example\.com/);
+  } finally {
+    await client.close();
+  }
+});
+
+test("without a profiles.json the server has one profile, default, and its instructions do not mention profiles", async () => {
+  const transport = new StdioClientTransport({ command: process.execPath, args: [SERVER], env: env({ BROWSER_PROFILES_FILE: path.join(dir, "none.json"), BROWSER_CDP_URL: "http://127.0.0.1:9" }), stderr: "pipe" });
+  const client = new Client({ name: "unit", version: "0.0.0" });
+  await client.connect(transport);
+  try {
+    assert.doesNotMatch(client.getInstructions(), /profile/i);
+    const { tools } = await client.listTools();
+    assert.match(tools[0].inputSchema.properties.profile.description, /Profiles: default\.$/);
+  } finally {
+    await client.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

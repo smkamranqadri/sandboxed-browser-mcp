@@ -6,9 +6,9 @@ import { browserTools as builtTools } from "../../dist/tools.js";
  */
 export * from "../../dist/tools.js";
 
-export function browserTools(sessionId) {
+export function browserTools(sessionId, profiles) {
   return [
-    ...builtTools(sessionId),
+    ...builtTools(sessionId, profiles),
     {
       name: "test_list",
       label: "List",

@@ -1,7 +1,9 @@
 # Plan: named browser profiles
 
-Status: scope decided by the owner 2026-11-12 (interview below). Not yet reviewed by a second CLI. Nothing is
-implemented.
+Status: scope decided by the owner 2026-11-12 (interview below). Implemented on branch
+`brigade/implement-multiple-named-browser-5b9823` (not released; the owner releases). No second-CLI review of this plan
+was recorded before the code was written (the worker could not start another agent); the instructions sentence (open
+question 1) was taken as recommended.
 
 Goal: a person keeps separate signed-in sessions, for example `work` and `personal`. The agent picks one per call with
 an optional `profile` argument. Today there is one stack, one `profile` volume at `/config` and one fixed project name.

@@ -15,9 +15,16 @@ export type Schema = {
   additionalProperties: false;
 };
 
-/** A schema of `fields`; the names after them are the required ones. */
+/** The profile argument every tool takes; the server lists the profile names in its description (tools.ts). */
+export const PROFILE_FIELD: Scalar = {
+  type: "string",
+  default: "default",
+  description: "Which browser profile (a separate signed-in session) to use. Leave it out for the default one; name another only when the user's task names it.",
+};
+
+/** A schema of `fields` (and the optional profile); the names after them are the required ones. */
 function params(fields: Record<string, Field>, ...required: string[]): Schema {
-  const schema: Schema = { type: "object", properties: fields, additionalProperties: false };
+  const schema: Schema = { type: "object", properties: { ...fields, profile: PROFILE_FIELD }, additionalProperties: false };
   if (required.length > 0) schema.required = required;
   return schema;
 }

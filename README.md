@@ -73,6 +73,8 @@ hand instead, see [Configuration](docs/configuration.md#manual-setup).
 - File upload from your machine: `browser_upload` gives a page's file input files from under your home folder,
   through the input, its label or the button that opens its chooser, with no file dialog and no folder shared with the
   container.
+- Several browsers, if you want them. `install.sh profile add work` starts a separate browser with its own logins
+  and its own allowed hosts; the agent names the profile per call, and a client entry can be limited to some of them.
 - A fence, when you want one. List the hosts the agent may use, and three layers each refuse the rest: the browser's
   own policy, a guard on every page request, and a check of where every action ended up.
 - Page text marked as untrusted, every time, with a warning line when it looks like an attempt to steer the agent.
@@ -113,7 +115,10 @@ Attach ~/Documents/seed-list.csv to the import form.
 - Change the allowed hosts in two places: the install's `docker/.env` (then
   `docker compose -f <install dir>/docker/compose.yaml up -d`) and the client's entry. See [Configuration](docs/configuration.md#allowed-hosts).
 - `install.sh check` and `install.sh update` keep you current; `install.sh uninstall` removes it, and `--purge` also
-  deletes the browser profile with your sessions.
+  deletes the browser profiles with your sessions.
+- Separate sessions: `install.sh profile add work --hosts 'docs.example.com'`, then ask for "the work profile". See
+  [Configuration](docs/configuration.md#profiles); a client that can use two profiles can act in both (see
+  [Security](docs/security.md)).
 
 ## Privacy and safety
 
@@ -124,7 +129,7 @@ Attach ~/Documents/seed-list.csv to the import form.
   profile.
 - Uploads read files from your machine: only regular files under your home folder, never credential, key, history or
   browser-profile files (a denylist), and the page then has their bytes and can send them anywhere. Linux only.
-- Anything on your machine that can reach `127.0.0.1:9322` can drive the browser.
+- Anything on your machine that can reach `127.0.0.1:9322` can drive the browser (and the same for each profile's port).
 
 The full threat model, with what is and is not covered: [Security](docs/security.md).
 

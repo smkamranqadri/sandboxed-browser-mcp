@@ -28,7 +28,8 @@ show them.
 
 The module boundaries the kept code and tests import must exist with these names (their insides are free):
 
-- `src/tools.ts` exports `browserTools(sessionId)` returning the tool definitions, `instructions(defs)` returning the
+- `src/tools.ts` exports `browserTools(sessionId, profiles?)` (profiles: a `Profiles` of `src/profiles.ts`, default from
+  `profiles.json`/the environment) returning the tool definitions, `instructions(defs)` returning the
   server instructions, `runCall(work)` returning `{ result, abandon }`, `stillWanted()`, `ToolError`, `disconnect()`
   and `keyCombo(text)`.
 - `src/signals.ts` exports `SIGNALS` (a list of `{ name, ... }`) and `injectionSignals(text)`.
@@ -57,9 +58,12 @@ A tool definition has `name`, `label`, `description`, `inputSchema` (JSON schema
 The tool names, argument names, types, defaults and required lists are a public interface: clients and prompts
 depend on them. Descriptions are new text (section 12).
 
+Since 1.2.0 every tool also takes `profile` (string, optional, default `"default"`; section 16). It is never in a
+`required` list; nothing else about the table changed. A call without it is a call for `default`.
+
 ## 3. The session
 
-- One server process is one session. It follows one tab of the browser at a time.
+- One server process is one session. It follows one tab of the browser at a time (per profile, since 1.2.0: section 16).
 - The first call picks the most recently opened tab, or opens one if there is none. When the followed tab closes,
   the next call picks again.
 - The followed tab is always the one in front. A tab in the background does not paint, and a screenshot of it waits
@@ -297,3 +301,32 @@ each rule is there, is kis/intent/plan-file-upload.md.
   still open, has the connection dropped instead, which ends the interception with it. Not seen: a switch-off the
   browser rejects while its session lives, because Playwright 1.64.0 discards that error (owner, 2026-10-25: accepted
   and documented).
+
+## 16. Profiles
+
+Added 1.2.0; the plan, with the owner's decisions, is kis/intent/plan-browser-profiles.md.
+
+- A profile is one whole browser stack (container, volume, ports, password, allowed hosts). The server learns the
+  profiles at start from `profiles.json` (`src/profiles.ts`): `{"profiles":[{"name","cdpPort","hosts":[…]}]}`, written
+  by `install.sh`, no password. A file that exists but cannot be read is a failure to start (never a fall-back: that
+  would drop the fences). Without the file there is one profile, `default`, from `BROWSER_CDP_URL` and
+  `BROWSER_ALLOWED_HOSTS`, read at each use, so 1.1.0 setups behave as before.
+- Names match `^[a-z][a-z0-9-]{0,23}$`. `install.sh` also reserves `default` and `test` for new profiles.
+- `profile` on every tool: string, optional, default `"default"`. Its description lists the profile names the client
+  may use (read at start, not an enum). It is never required.
+- A call with a name that breaks the rule, an unknown name, or a name `BROWSER_PROFILES` excludes fails first, with one
+  plain error that lists the names the client may use, before any connection, guard or tab is touched (the server's own
+  words, not wrapped as page content). `BROWSER_PROFILES` (comma list, default all) limits a client; if it leaves out
+  `default`, a call without `profile` is refused with the same kind of error. A name in it that is not a profile, or
+  breaks the rule, is a failure to start.
+- Per profile, made on first use: the Playwright connection, the navigation guard (keyed by the profile's CDP
+  address), the followed tab (section 3), the last view for the diff and the refs. Calls still run one at a time across
+  all profiles, with the same time limit and abandonment. The allowlist check, the injection envelope and the upload
+  rules use the profile's own hosts.
+- A ref belongs to its profile: used with another profile it meets that browser's page and gets the normal "points at
+  nothing" error (section 5).
+- Answers name the profile only where they say where the tab stays (`You are still on <place> (profile <name>).`) and
+  in a failure to reach the browser, and only when it is not `default`: single-profile output is the same as 1.1.0's.
+- `instructions(defs, names)` adds one sentence, only when there is more than one profile (or the one is not
+  `default`): profiles keep separate signed-in sessions; use a profile only when the user's task names it, otherwise
+  leave out `profile`; a ref belongs to the profile that showed it. With only `default` the text is that of 1.1.0.

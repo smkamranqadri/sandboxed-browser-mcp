@@ -9,13 +9,21 @@
 - **The browser**: Chromium in a Docker container (`docker/compose.yaml`), with a desktop you can watch and use at
   `https://127.0.0.1:3101`. Its debugging protocol (CDP) is published on `127.0.0.1` only, through a small relay.
 - **The server**: a stdio MCP server (`dist/server.js`) that your agent starts. It connects to the browser over CDP
-  with Playwright and offers twelve tools. One server process is one session, following one tab.
+  with Playwright and offers twelve tools. One server process is one session, following one tab per browser profile (a profile is a separate browser; most installs have one).
 
 ## A call
 
 Calls run one at a time, in the order they came. A call that runs past its time limit (90 s by default,
 `BROWSER_CALL_TIMEOUT_MS`) is answered as failed so the next one can run, and it stops at its next step instead of
 going on: a type that timed out does not then press Enter.
+
+## Profiles
+
+A profile is one whole browser stack (container, volume, ports, password, allowed hosts); `install.sh profile add`
+makes more of them, and the server learns them from `profiles.json`. Every tool takes an optional `profile` (default
+`default`). The server keeps, per profile, its own CDP connection, guard, followed tab, last view and refs, made on the
+profile's first use. Calls still run one at a time across all of them. See [Configuration](configuration.md#profiles)
+and, for what crossing profiles means, [Security](security.md).
 
 ## What the agent reads
 
@@ -100,16 +108,17 @@ role-markup, hidden, secret-request), a `WARNING:` line naming it comes first.
 ```
 install.sh         install, check, update, uninstall
 src/server.ts      MCP server (stdio), call queue, envelope
-src/tools.ts       the twelve tools, the session (the followed tab), allowlist checks of the tab, call abandonment
+src/tools.ts       the twelve tools, one session per profile (the followed tab), allowlist checks of the tab, call abandonment
 src/upload.ts      the files of an upload: the path rules, read through one checked handle, as bytes for Playwright
 src/chooser.ts     file chooser capture during the agent's own click, released (confirmed) before the next call
-src/connection.ts src/tabs.ts   the Playwright connection; each tab's CDP session, which tabs are gone, the newest tab
+src/connection.ts src/tabs.ts   the Playwright connection (one per profile); each tab's CDP session, which tabs are gone, the newest tab
+src/profiles.ts    profiles.json, the profile name rule, BROWSER_PROFILES, the choice of a profile by a call
 src/view.ts        the page as text: the view, what changed, find, full text in pages
 src/refs.ts src/keys.ts src/schema.ts src/errors.ts src/cdp.ts   refs, key names, argument schemas, ToolError, CDP address
 src/cursor.ts      the cursor drawn into the page
 src/signals.ts     injection patterns
 src/guard.ts       allowlist and untrusted-content envelope
-src/navguard.ts    the allowlist in the browser: its own CDP connection that fails document requests to other hosts
+src/navguard.ts    the allowlist in the browser: its own CDP connection (one per browser) that fails document requests to other hosts
 src/validate.ts    tool arguments checked against their schemas
 docker/compose.yaml, docker/compose.test.yaml
 docker/policy.sh   BROWSER_ALLOWED_HOSTS as the browser's managed policy

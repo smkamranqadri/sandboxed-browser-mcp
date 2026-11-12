@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+### Added
+
+- **Named browser profiles.** Keep separate signed-in sessions, for example `work` and `personal`, as separate
+  browsers that run at the same time (own container, volume, ports, password and allowed hosts). Every tool takes an
+  optional `profile` argument (default `default`); a call without it behaves as in 1.1.0. `install.sh profile
+  add|list|remove` manages them, `profiles.json` tells the server about them, and `BROWSER_PROFILES` on a client entry
+  limits that client to some of them. `default` keeps the existing volume, so an update keeps your sessions.
+  Allowed hosts are per profile. See [Configuration](docs/configuration.md#profiles).
+
+### Changed
+
+- `install.sh uninstall --purge` deletes every profile; with more than one it lists them and needs `--yes`.
+- `install.sh --client` no longer puts `BROWSER_ALLOWED_HOSTS` on the client entry: the server reads each profile's
+  hosts from `profiles.json`. Existing entries keep theirs; the server ignores it when it differs, and says so.
+
+### Security
+
+- The tools, unlike the containers, do not keep profiles apart: a client that may use two profiles can act in both. See
+  [Security](docs/security.md).
+
 ## 1.1.0 (2026-10-25)
 
 ### Added

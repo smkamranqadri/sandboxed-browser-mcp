@@ -1,19 +1,32 @@
 # State
 
-Branch: main
+Branch: brigade/implement-multiple-named-browser-5b9823 (PR against main; based on the plan branch of PR #10)
 Mode: Standard
-Task: none in progress
-Status: 1.1.0 released 2026-10-25 (tag v1.1.0 on 6aa699b, PR #4 squash-merged with the four CI checks green;
-GitHub release "sandboxed-browser-mcp 1.1.0: file upload"). It adds `browser_upload` (plan
-kis/intent/plan-file-upload.md, done) and the chooser catch in `browser_click`. 1.0.0: 2026-10-24, tag v1.0.0 on
-6f31136. Installed on the maintainer's machine: 1.1.0 (~/.local/share/sandboxed-browser-mcp, Claude Code, Codex and pi
-registered, any host); clients need a restart to load it.
+Task: named browser profiles (1.2.0), plan kis/intent/plan-browser-profiles.md: implemented, awaiting the owner's review
+and release. Version in package.json is still 1.1.0 on purpose.
+Status: code, tests and docs done (src/profiles.ts, per-profile Session/link/guard, optional `profile` on all twelve
+tools, `install.sh profile add|list|remove`, profiles.json, BROWSER_PROFILES). 1.1.0 stays the released version
+(2026-10-25, tag v1.1.0); installed on the maintainer's machine: 1.1.0, untouched by this work.
 Blocker: none
-Next: support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
+Next: the owner reviews, merges and releases 1.2.0; then support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
 uninstall), a row in the README's Supported agents table and docs/configuration.md, and one real session against the
 test stack, as was done for Claude Code, Codex and pi.
-Next (planned, scope decided 2026-11-12, plan review pending): named browser profiles with an optional `profile` tool argument: kis/intent/plan-browser-profiles.md (1 low-stakes open question). Owner chose profiles before Command Code.
 Owner's: upload docs/assets/social-preview.png as the repo's social preview in GitHub settings (no API for it).
+
+Proof, profiles (2026-11-12, Linux):
+- `npm test`: 153 unit, 98 integration, 0 fail (test stack + second stack `stack:test-b`). One earlier full run had
+  one unrelated-looking integration failure (guard.test.mjs "once loaded", tab url empty); it passed 3 times alone and in
+  the next full run, so it is treated as flaky, not explained.
+- Mutation checks: 7 + 14 + 13 mutants of profiles.ts, tools.ts, navguard.ts, connection.ts, schema.ts, server.ts and
+  install.sh, each caught by a named test; two survivors in install.sh were tightened and then caught; every file
+  restored byte-identical (git diff clean).
+- Real run of install.sh on /tmp/sbm-dev (compose project sbm-dev, other ports, never the installed copy): an install
+  made by 1.1.0's script was updated by the new one; a cookie set before survived `update` and a forced container
+  recreation; `profile add` x2, `list`, `remove` (volume kept), `remove --purge`, `uninstall --purge` (refused without
+  --yes with 2 profiles), then removed; the server in that folder refused a host on the work profile's list.
+- From inside a profile's container, other stacks' published ports and containers did not answer.
+Not verified: a real client session (Claude Code, Codex, pi) using two profiles; a plan review by a second CLI; macOS/
+Windows; the Chromium policy of a non-default profile under a fence (only the server's guard was exercised there).
 
 Proof, 1.1.0 (2026-10-25):
 - CI on PR #4 (057b837): unit on Node 22.4, 24, 26 and integration, all pass; the merged tree equals the verified
