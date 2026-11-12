@@ -1,21 +1,40 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { cdpUrl } from "./cdp.js";
-import { allowlist, wrapUntrusted } from "./guard.js";
+import { parseAllowlist, wrapUntrusted } from "./guard.js";
+import { clientLimit, loadProfiles, Profiles, profilesPath } from "./profiles.js";
 import { browserTools, disconnect, instructions, runCall, ToolError, type ToolDef } from "./tools.js";
 import { validateArgs } from "./validate.js";
 
 /**
- * The browser tools as a stdio MCP server. One server process is one session: one tab, followed from call to call, and the
- * calls run one at a time in the order they came, each starting only when the one before it has been answered.
+ * The browser tools as a stdio MCP server. One server process is one session: per browser profile one tab, followed from
+ * call to call, and the calls (of all profiles) run one at a time in the order they came, each starting only when the one before it has been answered.
  *
  * stdout is the protocol; everything this prints goes to stderr.
  */
 
-const defs: ToolDef[] = browserTools(`mcp-${process.pid}`);
+// A profiles.json that cannot be read is a failure to start, never a fall-back: that would drop the profiles' fences.
+let profiles: Profiles;
+try {
+  profiles = new Profiles(loadProfiles(), clientLimit());
+  // With profiles.json, each profile's hosts come from it. A client entry that still sets BROWSER_ALLOWED_HOSTS (1.1.0
+  // put them there) to something else would be ignored while the person believes it is in force: the fence would fail
+  // open. So the server does not start until the two agree.
+  const entryHosts = parseAllowlist(process.env.BROWSER_ALLOWED_HOSTS);
+  const defaultHosts = profiles.all.find((p) => p.name === "default")?.hosts() ?? [];
+  const same = [...entryHosts].sort().join(",") === [...defaultHosts].sort().join(",");
+  if (existsSync(profilesPath()) && entryHosts.length && !same) {
+    throw new Error(
+      `BROWSER_ALLOWED_HOSTS on this client entry (${entryHosts.join(", ")}) differs from the default profile's hosts in profiles.json (${defaultHosts.length ? defaultHosts.join(", ") : "any host"}). The server will not start with two fences that disagree. Remove BROWSER_ALLOWED_HOSTS from the client entry, and set the hosts in docker/.env (then run install.sh update), or make the two lists the same.`,
+    );
+  }
+} catch (e) {
+  console.error(`sandboxed-browser-mcp: ${e instanceof Error ? e.message : e}`);
+  process.exit(1);
+}
+const defs: ToolDef[] = browserTools(`mcp-${process.pid}`, profiles);
 const byName = new Map(defs.map((d) => [d.name, d]));
 
 /** This release, as package.json (one directory above dist/) says. */
@@ -23,7 +42,7 @@ const { version } = JSON.parse(readFileSync(new URL("../package.json", import.me
 
 const server = new Server(
   { name: "sandboxed-browser-mcp", version },
-  { capabilities: { tools: {} }, instructions: instructions(defs) },
+  { capabilities: { tools: {} }, instructions: instructions(defs, profiles.names()) },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -102,5 +121,10 @@ process.stdin.on("end", () => void stop());
 process.stdin.on("close", () => void stop());
 
 await server.connect(new StdioServerTransport());
-const hosts = allowlist();
-console.error(`sandboxed-browser-mcp: ${defs.length} tools; browser at ${cdpUrl()}; ${hosts.length ? `allowed hosts: ${hosts.join(", ")}` : "any host allowed"}`);
+for (const p of profiles.all) {
+  const hosts = p.hosts();
+  console.error(
+    `sandboxed-browser-mcp: profile ${p.name}${profiles.names().includes(p.name) ? "" : " (not for this client)"}: browser at ${p.cdp()}; ${hosts.length ? `allowed hosts: ${hosts.join(", ")}` : "any host allowed"}`,
+  );
+}
+console.error(`sandboxed-browser-mcp: ${defs.length} tools`);

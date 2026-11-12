@@ -43,6 +43,27 @@ and the spec's upload section; threat model: `docs/security.md`. Facts that are 
 - A popup cannot open a chooser from its opener's click (user activation does not carry over); a test needs a
   trusted click inside the popup.
 
+## Profiles (1.2.0)
+
+Contract: `kis/intent/plan-browser-profiles.md` and the spec's section 16; user docs: `docs/configuration.md#profiles`.
+Facts that are not obvious from those:
+
+- A profile is a compose project. `default` is the install's own `docker/.env` under the compose file's own project
+  name (`sandboxed-browser-mcp`), so its volume `sandboxed-browser-mcp_profile` is the one 1.1.0 used: no migration.
+  Profile `N` is `docker compose -p <base>-N --env-file profiles/N/.env`; `<base>` is `COMPOSE_PROJECT_NAME` if set,
+  else `sandboxed-browser-mcp`. Compose resolves the project name as: `-p` flag, then `COMPOSE_PROJECT_NAME`, then the
+  file's `name:`. That is how a trial install is kept apart from a real one (the integration test stacks use `-p`).
+- A variable in the shell beats `--env-file` in compose. `install.sh` therefore unsets the `BROWSER_*` variables for
+  other profiles' stacks, and reads the default's ports as compose would (shell first, then `docker/.env`).
+- `profiles.json` is derived: `install.sh` rebuilds it from the env files after every add, remove, install and update.
+  The env files are the source of truth. It holds name, `cdpPort`, `hosts[]` and no password.
+- Server state per profile (`Session` in `src/tools.ts`): connection (`BrowserLink`), navigation guard (`navguard.ts`
+  keys one guard per CDP address), followed tab, last view, refs. The `default` profile without a file reads
+  `BROWSER_CDP_URL`/`BROWSER_ALLOWED_HOSTS` at each use, because the kept unit tests set them after the tools exist.
+- `ChooserCapture.arm(page, link)` takes the profile's link, because a failed switch-off drops that browser's connection.
+- Test stacks: `sandboxed-browser-mcp-test` (env `docker/.env.test`, CDP 9422) and, for the profile tests,
+  `sandboxed-browser-mcp-test-b` (env `docker/.env.test-b`, CDP 9423, fixture 3298).
+
 ## Known limits
 
 - **The container's native file dialog drops the pick** (seen 2026-10-25 on LinkedIn: the dialog opens, the person

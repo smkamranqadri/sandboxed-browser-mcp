@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+### Added
+
+- **Named browser profiles.** Keep separate signed-in sessions, for example `work` and `personal`, as separate
+  browsers that run at the same time (own container, volume, ports, password and allowed hosts). Every tool takes an
+  optional `profile` argument (default `default`); a call without it behaves as in 1.1.0. `install.sh profile
+  add|list|remove` manages them, `profiles.json` tells the server about them, and `BROWSER_PROFILES` on a client entry
+  limits that client to some of them. `default` keeps the existing volume, so an update keeps your sessions.
+  Allowed hosts are per profile. See [Configuration](docs/configuration.md#profiles).
+
+### Changed
+
+- `install.sh uninstall --purge` deletes every profile, removed ones included; with more than one it lists them and needs `--yes`.
+- `install.sh --client` no longer puts `BROWSER_ALLOWED_HOSTS` on the client entry: the server reads each profile's
+  hosts from `profiles.json`. An existing entry that keeps a list differing from the default profile's makes the server refuse to start, with a message saying how to fix it, rather than run with a fence the person did not mean.
+- With several profiles, a ref of a profile other than `default` is shown with a tag (`[e12@work]`), and a call accepts only the refs of its own profile. Refs of the default profile and of a client with one profile are unchanged.
+- Names `test` and `test-*` are reserved for profiles (the test stacks use them). A duplicate `cdpPort` in `profiles.json` is an error.
+- `profile remove <name>` without `--purge` records the kept volume (`.kept-profiles`); `profile remove <name> --purge` and `uninstall --purge` delete kept volumes too, and say which sessions they deleted.
+
+### Security
+
+- The tools, unlike the containers, do not keep profiles apart: a client that may use two profiles can act in both. See
+  [Security](docs/security.md).
+
 ## 1.1.0 (2026-10-25)
 
 ### Added

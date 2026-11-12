@@ -2,7 +2,8 @@
 
 ```sh
 npm run test:unit          # view, refs, keys, the guard (its connection against a fake browser), policy.sh, signals, validation,
-                           # call abandonment (a fake page): no browser
+                           # call abandonment (a fake page), profiles (profiles.json, the name rule, two profiles at once against
+                           # fake browsers), install.sh's profile commands (docker and curl replaced by shims): no browser
 ```
 
 Integration tests spawn the built server over stdio, speak MCP to it, and drive a real Chromium. They need a *separate*
@@ -12,7 +13,12 @@ test stack (other project name and ports than the default one, so nothing collid
 ( umask 077; printf 'BROWSER_PASSWORD=%s\nBROWSER_WEB_PORT=3201\nBROWSER_CDP_PORT=9422\nBROWSER_STREAM_PORT=8182\nFIXTURE_PORT=3299\n' \
   "$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > docker/.env.test )
 npm run stack:test:up
+# Profile tests: a second test stack (profile "other"), other project name, ports and fixture port:
+( umask 077; printf 'BROWSER_PASSWORD=%s\nBROWSER_WEB_PORT=3202\nBROWSER_CDP_PORT=9423\nBROWSER_STREAM_PORT=8183\nFIXTURE_PORT=3298\n' \
+  "$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > docker/.env.test-b )
+npm run stack:test-b:up
 npm run test:integration
+npm run stack:test-b:down
 npm run stack:test:down    # down -v
 ```
 
@@ -28,6 +34,12 @@ integration tests cover the tools (`tools.test.mjs`), the cursor and `BROWSER_CU
 regions of the browser's own screenshots), the fence (`guard.test.mjs`, `policy.test.mjs`), the followed tab
 (`tabs.test.mjs`) and call time limits (`timeout.test.mjs`).
 
+`test/integration/profiles.test.mjs` runs the server over both stacks with a `profiles.json` (`default` on 9422, `other` on
+9423, fenced to `allowed.fixture.test`): cookies, followed tabs, refs and fences do not cross; an unknown profile fails
+before any browser work; `BROWSER_PROFILES` limits a client. `test/unit/installer.test.mjs` runs `install.sh profile …`
+and `uninstall` on a scratch folder with `docker` and `curl` shims that log their arguments: names fail before any
+docker call, ports are the first free ones, each stack gets its own project name, `uninstall --purge` needs `--yes`.
+
 The test override (`docker/compose.test.yaml`) adds a fixture-site container (`test/integration/fixture-server.mjs`)
 reachable from the browser as `allowed.fixture.test`, `blocked.fixture.test` and `allowed.othersite.test`. It is a
 container, not a server on the host, because a host firewall (ufw's defaults here) drops traffic from containers to the
@@ -36,6 +48,10 @@ server received, not in a tool's reply.
 
 ## Not verified
 
+- Profiles (1.2.0): the real `install.sh profile add|remove` and `update` were run on a scratch folder (`/tmp/sbm-dev`,
+  compose project `sbm-dev`, other ports; never the installed copy): an install made by 1.1.0's script was updated with
+  the new one, and a cookie written before the update was read back after the container was recreated. One real
+  client session with two profiles is not recorded yet.
 - Clients: on this build, one real model session each (2026-10-24, Linux) filled in a form and sent it, and was refused
   a blocked host, with the fixture showing no request to it: Claude Code (`claude -p`, Sonnet 5.5), Codex (`codex
   exec`, gpt-6.1-sol, with `default_tools_approval_mode = "approve"`) and pi (gpt-6.1-sol, `--exposure direct`).

@@ -43,6 +43,11 @@ describe("the interface", () => {
     const shape = Object.fromEntries(
       list.map((t) => [t.name, { props: Object.fromEntries(Object.entries(t.inputSchema.properties ?? {}).map(([k, v]) => [k, [v.type, v.enum ?? null, v.default ?? null, v.items ?? null, v.minItems ?? null]])), required: t.inputSchema.required ?? [] }]),
     );
+    // Since 1.2.0 every tool also takes the optional `profile` (profiles.test.mjs); the rest is as in 1.1.0.
+    for (const entry of Object.values(shape)) {
+      assert.deepEqual(entry.props.profile, ["string", null, "default", null, null]);
+      delete entry.props.profile;
+    }
     assert.deepEqual(shape, {
       browser_navigate: { props: { url: ["string", null, null, null, null] }, required: ["url"] },
       browser_back: { props: {}, required: [] },

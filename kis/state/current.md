@@ -1,19 +1,49 @@
 # State
 
-Branch: main
+Branch: brigade/implement-multiple-named-browser-5b9823 (PR against main; based on the plan branch of PR #10)
 Mode: Standard
-Task: none in progress
-Status: 1.1.0 released 2026-10-25 (tag v1.1.0 on 6aa699b, PR #4 squash-merged with the four CI checks green;
-GitHub release "sandboxed-browser-mcp 1.1.0: file upload"). It adds `browser_upload` (plan
-kis/intent/plan-file-upload.md, done) and the chooser catch in `browser_click`. 1.0.0: 2026-10-24, tag v1.0.0 on
-6f31136. Installed on the maintainer's machine: 1.1.0 (~/.local/share/sandboxed-browser-mcp, Claude Code, Codex and pi
-registered, any host); clients need a restart to load it.
+Task: named browser profiles (1.2.0), plan kis/intent/plan-browser-profiles.md: implemented, awaiting the owner's review
+and release. Version in package.json is still 1.1.0 on purpose.
+Status: code, tests and docs done (src/profiles.ts, per-profile Session/link/guard, optional `profile` on all twelve
+tools, `install.sh profile add|list|remove`, profiles.json, BROWSER_PROFILES). 1.1.0 stays the released version
+(2026-10-25, tag v1.1.0); installed on the maintainer's machine: 1.1.0, untouched by this work.
 Blocker: none
-Next: support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
+Next: the owner reviews, merges and releases 1.2.0; then support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
 uninstall), a row in the README's Supported agents table and docs/configuration.md, and one real session against the
 test stack, as was done for Claude Code, Codex and pi.
-Next (planned, scope decided 2026-11-12, plan review pending): named browser profiles with an optional `profile` tool argument: kis/intent/plan-browser-profiles.md (1 low-stakes open question). Owner chose profiles before Command Code.
 Owner's: upload docs/assets/social-preview.png as the repo's social preview in GitHub settings (no API for it).
+
+Proof, profiles (2026-11-12, Linux):
+- `npm test`: 161 unit, 98 integration, 0 fail (test stack + second stack `stack:test-b`). One earlier full run had
+  one integration failure (guard.test.mjs "once loaded", tab url empty); it did not repeat. Likely cause: /json/list read
+  right after the page was put back (the test now waits for the settled address); not proven, and the test stack was
+  possibly shared with another worktree.
+- Real client session (2026-11-12, Linux): Claude Code 2.1.322 with Sonnet 5.5 (`claude -p`, MCP config naming
+  dist/server.js and a temp profiles.json with `default` = test stack CDP 9422, any host, and `other` = test-b stack
+  CDP 9423, hosts allowed.fixture.test). Only the test stacks; not the installed copy. Observed in the tool log: the
+  model passed `profile` itself; cookie set in default was `seed=alpha` there and `none` in other; refs of other were
+  `[f3e5@other]`, default's plain `[f4e5]`; default's `f4e14` used with other was refused ("has no profile tag, so it
+  is a ref of the default profile…"), `f3e14@other` used with default was refused ("is a ref of profile other…"); the
+  same ref worked in its own profile; `blocked.fixture.test/secret` opened in default and was refused in other
+  ("not an allowed host (BROWSER_ALLOWED_HOSTS: allowed.fixture.test)"). A second session with a single-profile
+  client (no profiles.json, BROWSER_CDP_URL) saw plain refs (`[f1e14]`) and its click worked. Not checked: Codex or
+  pi sessions with two profiles; a fenced non-default profile's Chromium policy; macOS and Windows. The model first
+  called the fence gap on default "a gap"; that is by design (default had no hosts list).
+- Review fixes (2026-11-12): profiles.json path with fileURLToPath (space/non-ASCII install dir); refs carry the profile
+  tag when a client has several profiles; a client entry's BROWSER_ALLOWED_HOSTS that differs from profiles.json is a
+  failure to start; kept volumes are recorded (.kept-profiles) and purged; `test-*` reserved; duplicate cdpPort
+  refused; installer tests for update, name check, purge. 14 + 8 + 3 more mutants, caught. The plan was corrected: no
+  `uninstall --profile`, and BROWSER_PROFILES is set by hand in the client entry.
+- Mutation checks: 7 + 14 + 13 mutants of profiles.ts, tools.ts, navguard.ts, connection.ts, schema.ts, server.ts and
+  install.sh, each caught by a named test; two survivors in install.sh were tightened and then caught; every file
+  restored byte-identical (git diff clean).
+- Real run of install.sh on /tmp/sbm-dev (compose project sbm-dev, other ports, never the installed copy): an install
+  made by 1.1.0's script was updated by the new one; a cookie set before survived `update` and a forced container
+  recreation; `profile add` x2, `list`, `remove` (volume kept), `remove --purge`, `uninstall --purge` (refused without
+  --yes with 2 profiles), then removed; the server in that folder refused a host on the work profile's list.
+- From inside a profile's container, other stacks' published ports and containers did not answer.
+Not verified: a real client session (Claude Code, Codex, pi) using two profiles; a plan review by a second CLI; macOS/
+Windows; the Chromium policy of a non-default profile under a fence (only the server's guard was exercised there).
 
 Proof, 1.1.0 (2026-10-25):
 - CI on PR #4 (057b837): unit on Node 22.4, 24, 26 and integration, all pass; the merged tree equals the verified

@@ -8,14 +8,39 @@ import { ToolError } from "./errors.js";
 
 export const REF = /^(?:f\d+)?e\d+$/;
 
-/** The ref as given, without brackets, spaces or a `ref=` before it; a ToolError when it is not shaped like a ref. */
-export function checkRef(raw: string): string {
+/** Which profile a call is for, and whether refs carry a profile tag (when the client has several profiles). */
+export interface RefScope {
+  profile: string;
+  tagged: boolean;
+}
+
+const BAD_REF = (raw: string): ToolError =>
+  new ToolError(`"${raw}" cannot be used as a ref: refs are short codes such as e12 or f2e7, copied from the brackets that end a line of browser_snapshot or browser_find.`);
+
+/**
+ * The ref as given, without brackets, spaces or a `ref=` before it; a ToolError when it is not shaped like a ref.
+ * Refs belong to one page of one profile's browser. When the client has several profiles, the refs of every profile but
+ * `default` are shown with a tag (`e12@work`), and a call accepts only the ref of its own profile.
+ */
+export function checkRef(raw: string, scope?: RefScope): string {
   let ref = raw.trim();
   if (ref.startsWith("[") && ref.endsWith("]")) ref = ref.slice(1, -1).trim();
   if (ref.startsWith("ref=")) ref = ref.slice("ref=".length);
-  if (REF.test(ref)) return ref;
-  throw new ToolError(`"${raw}" cannot be used as a ref: refs are short codes such as e12 or f2e7, copied from the brackets that end a line of browser_snapshot or browser_find.`);
+  const at = ref.indexOf("@");
+  const tag = at < 0 ? undefined : ref.slice(at + 1);
+  const bare = at < 0 ? ref : ref.slice(0, at);
+  if (!REF.test(bare)) throw BAD_REF(raw);
+  const wanted = scope && scope.tagged && scope.profile !== "default" ? scope.profile : undefined;
+  if (tag === undefined && wanted === undefined) return bare;
+  if (tag !== undefined && scope && tag === scope.profile) return bare;
+  if (tag !== undefined) {
+    throw new ToolError(`${bare}@${tag} is a ref of ${tag === "default" ? "the default profile" : `profile ${tag}`}, and this call is for ${scope ? `profile ${scope.profile}` : "no other profile"}: a ref works only in the profile it came from. Get a ref from this profile's own browser_snapshot or browser_find.`);
+  }
+  throw new ToolError(`${bare} has no profile tag, so it is a ref of the default profile, and this call is for profile ${wanted}: a ref works only in the profile it came from. Refs of profile ${wanted} end in @${wanted} (${bare}@${wanted}); get one from this profile's own browser_snapshot or browser_find.`);
 }
+
+/** Writes the tag after every ref in brackets of an answer (`[e12]` to `[e12@work]`), for a profile whose refs carry one. */
+export const tagRefs = (text: string, profile: string): string => text.replace(/\[((?:f\d+)?e\d+)\]/g, `[$1@${profile}]`);
 
 /** The one answer for a ref that points at nothing now. */
 export const gone = (ref: string): ToolError =>

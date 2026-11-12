@@ -1,5 +1,5 @@
 import type { FileChooser, Page } from "playwright-core";
-import { link } from "./connection.js";
+import type { BrowserLink } from "./connection.js";
 import { ToolError } from "./errors.js";
 
 /**
@@ -60,14 +60,17 @@ export class ChooserCapture {
   private settle!: () => void;
   private readonly settled = new Promise<void>((resolve) => (this.settle = resolve));
 
-  private constructor(private readonly page: Page) {
+  private constructor(
+    private readonly page: Page,
+    private readonly link: BrowserLink,
+  ) {
     unsettled.add(this.settled);
     void this.settled.then(() => unsettled.delete(this.settled));
   }
 
-  /** A capture on `page`, armed: interception confirmed on, then the listener added. */
-  static async arm(page: Page): Promise<ChooserCapture> {
-    const capture = new ChooserCapture(page);
+  /** A capture on `page` (opened through `link`), armed: interception confirmed on, then the listener added. */
+  static async arm(page: Page, link: BrowserLink): Promise<ChooserCapture> {
+    const capture = new ChooserCapture(page, link);
     try {
       const on = intercept(page, true);
       if ((await within(on, RELEASE_LIMIT.ms)) === "late") throw new ToolError("The browser did not answer in time, so nothing was clicked. Try again, or tell the user.");
@@ -124,7 +127,7 @@ export class ChooserCapture {
         switched = Promise.reject(e);
       }
       // Not switched off, and the page still there: this connection goes, and its interception with it.
-      if ((await within(switched, RELEASE_LIMIT.ms)) !== "done" && !this.page.isClosed()) await within(link.release(), RELEASE_LIMIT.ms);
+      if ((await within(switched, RELEASE_LIMIT.ms)) !== "done" && !this.page.isClosed()) await within(this.link.release(), RELEASE_LIMIT.ms);
       try {
         this.page.off("filechooser", this.listener);
       } catch {

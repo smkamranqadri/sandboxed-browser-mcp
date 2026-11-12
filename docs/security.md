@@ -46,8 +46,24 @@ What sandboxed-browser-mcp protects, and what it does not. To report a problem, 
   click) is switched off when the call ends; a switch-off that fails or is not answered in time drops the browser
   connection, which ends it. Not seen: a switch-off the browser rejects while its session lives, because Playwright
   1.64.0 discards that error, so later choosers on that page could stay caught without a dialog.
-- **Revoke:** `install.sh uninstall --purge`, or `docker compose -f docker/compose.yaml down -v` for a manual setup,
-  deletes the container *and* its profile volume (cookies, logins). Without `--purge` / `-v` the profile is kept.
+- **Profiles share one agent.** Each profile is its own container, volume, password and fence, so cookies and files do
+  not cross between browsers. The tools do. A client that can use two profiles holds both: a page-driven agent
+  (prompt injection) in `personal` can call `browser_navigate` with `profile: "work"` and act in the signed-in
+  sessions there. The server instructions tell the model to use a profile only when the user's task names it; that
+  is a prompt, not a control. The control is `BROWSER_PROFILES` on a client entry (`BROWSER_PROFILES=personal`): a
+  client fenced to some profiles is refused the others by the server, before any browser work. Refs are tied to their
+  profile (`e12@work`), so a ref from one profile cannot act on an element of another by accident. A client entry
+  that still sets `BROWSER_ALLOWED_HOSTS` to a list differing from `profiles.json` makes the server refuse to start. It limits a client, not
+  a person: any local process can still reach every profile's CDP port. The allowed hosts are per profile (the
+  server's guard reads `profiles.json`, the browser's policy reads the profile's env file, both written from one
+  `--hosts` value). More profiles are more unauthenticated CDP ports on loopback, and about 1 GB of memory each.
+  Checked once by hand (2026-11-12, Linux): from inside one profile's container, the other stacks' published ports
+  (`127.0.0.1` on the host) and the other container by name did not answer. `profiles.json` holds no password; the
+  profiles' env files do, and `profiles/` is inside the install folder, which the upload denylist refuses.
+- **Revoke:** `install.sh uninstall --purge` (with `--yes` when there is more than one profile), or
+  `docker compose -f docker/compose.yaml down -v` for a manual setup, deletes the containers *and* their profile
+  volumes (cookies, logins). `install.sh profile remove <name> --purge` deletes one. Without `--purge` / `-v` the
+  profiles are kept.
 - The browser runs with `seccomp=unconfined` and `--no-sandbox` (the image's defaults for Chromium inside a container).
 - The compose file disables Chromium's back/forward cache (`--disable-features=BackForwardCache`), as Playwright's own
   launcher does: a page restored by "back" otherwise keeps element refs the tools no longer know. If you point

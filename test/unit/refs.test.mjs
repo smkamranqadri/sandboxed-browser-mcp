@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { REF, checkRef, gone, refGoneError } from "../../dist/refs.js";
+import { REF, checkRef, gone, refGoneError, tagRefs } from "../../dist/refs.js";
 import { ToolError } from "../../dist/tools.js";
 
 test("a ref is e<n> or f<n>e<n>, as the view writes it, brackets and spaces aside", () => {
@@ -24,4 +24,30 @@ test("a ref that points nowhere has one answer, and the browser's errors for it 
   assert.equal(refGoneError(new Error('locator.count: Invalid frame in aria-ref selector "aria-ref=f1e5"')), true);
   // A call log that only names the selector is not that error (typing into a button names it too).
   assert.equal(refGoneError(new Error("locator.fill: Error: Element is not an <input>\nCall log:\n  - waiting for locator('aria-ref=f1e12')")), false);
+});
+
+test("with several profiles a ref carries its profile's tag, and a call accepts only the tag of its own profile", () => {
+  const work = { profile: "work", tagged: true };
+  const main = { profile: "default", tagged: true };
+  const alone = { profile: "default", tagged: false };
+  assert.equal(checkRef("e12@work", work), "e12");
+  assert.equal(checkRef("[f2e7@work]", work), "f2e7");
+  assert.equal(checkRef("ref=e3@work", work), "e3");
+  assert.equal(checkRef("e12", main), "e12", "the default profile's refs have no tag");
+  assert.equal(checkRef("e12@default", main), "e12");
+  assert.equal(checkRef("e12", alone), "e12");
+  assert.equal(checkRef("e12"), "e12");
+  const refused = (raw, scope, message) => assert.throws(() => checkRef(raw, scope), (e) => e instanceof ToolError && e.message === message, raw);
+  refused("e1@personal", work, "e1@personal is a ref of profile personal, and this call is for profile work: a ref works only in the profile it came from. Get a ref from this profile's own browser_snapshot or browser_find.");
+  refused("e1@work", main, "e1@work is a ref of profile work, and this call is for profile default: a ref works only in the profile it came from. Get a ref from this profile's own browser_snapshot or browser_find.");
+  refused("e1@default", work, "e1@default is a ref of the default profile, and this call is for profile work: a ref works only in the profile it came from. Get a ref from this profile's own browser_snapshot or browser_find.");
+  refused("e1", work, "e1 has no profile tag, so it is a ref of the default profile, and this call is for profile work: a ref works only in the profile it came from. Refs of profile work end in @work (e1@work); get one from this profile's own browser_snapshot or browser_find.");
+  refused("e1@work", alone, "e1@work is a ref of profile work, and this call is for profile default: a ref works only in the profile it came from. Get a ref from this profile's own browser_snapshot or browser_find.");
+  assert.throws(() => checkRef("e1@work"), (e) => e instanceof ToolError && /^e1@work is a ref of profile work, and this call is for no other profile/.test(e.message));
+  assert.throws(() => checkRef("x1@work", work), /cannot be used as a ref/);
+});
+
+test("tagRefs writes the profile after every ref in brackets of an answer, and nothing else", () => {
+  assert.equal(tagRefs('button "Save" [e12] disabled\nlink "a"[f2e7] and word[e3]', "work"), 'button "Save" [e12@work] disabled\nlink "a"[f2e7@work] and word[e3@work]');
+  assert.equal(tagRefs("e12 points at nothing [x1] [e]", "work"), "e12 points at nothing [x1] [e]");
 });
