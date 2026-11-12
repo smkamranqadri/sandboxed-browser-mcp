@@ -12,7 +12,7 @@ Blocker: none
 Next: support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
 uninstall), a row in the README's Supported agents table and docs/configuration.md, and one real session against the
 test stack, as was done for Claude Code, Codex and pi.
-Next (planned, not approved): named browser profiles, one stack per profile, picked by client entry: kis/intent/plan-browser-profiles.md (9 open questions for the owner).
+Next (planned, scope decided 2026-11-12, plan review pending): named browser profiles with an optional `profile` tool argument: kis/intent/plan-browser-profiles.md (1 low-stakes open question). Owner chose profiles before Command Code.
 Owner's: upload docs/assets/social-preview.png as the repo's social preview in GitHub settings (no API for it).
 
 Proof, 1.1.0 (2026-10-25):
