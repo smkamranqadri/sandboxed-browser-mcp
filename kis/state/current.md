@@ -1,14 +1,14 @@
 # State
 
-Branch: brigade/implement-multiple-named-browser-5b9823 (PR against main; based on the plan branch of PR #10)
+Branch: main
 Mode: Standard
-Task: named browser profiles (1.2.0), plan kis/intent/plan-browser-profiles.md: implemented, awaiting the owner's review
-and release. Version in package.json is still 1.1.0 on purpose.
-Status: code, tests and docs done (src/profiles.ts, per-profile Session/link/guard, optional `profile` on all twelve
-tools, `install.sh profile add|list|remove`, profiles.json, BROWSER_PROFILES). 1.1.0 stays the released version
-(2026-10-25, tag v1.1.0); installed on the maintainer's machine: 1.1.0, untouched by this work.
+Task: none in progress. 1.2.0 (named browser profiles, PR #11) is released: tag v1.2.0, GitHub release
+"sandboxed-browser-mcp 1.2.0: browser profiles", 2026-11-13. The maintainer's installed copy is still 1.1.0 until
+the owner runs `install.sh update`.
+Status: code, tests and docs of profiles merged (src/profiles.ts, per-profile Session/link/guard, optional `profile`
+on all twelve tools, `install.sh profile add|list|remove`, profiles.json, BROWSER_PROFILES).
 Blocker: none
-Next: the owner reviews, merges and releases 1.2.0; then support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
+Next: the owner runs `install.sh update` on the installed copy; then support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
 uninstall), a row in the README's Supported agents table and docs/configuration.md, and one real session against the
 test stack, as was done for Claude Code, Codex and pi.
 Owner's: upload docs/assets/social-preview.png as the repo's social preview in GitHub settings (no API for it).
