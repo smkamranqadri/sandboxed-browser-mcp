@@ -81,16 +81,36 @@ test("each profile follows its own tab, in its own browser", async () => {
   assert.deepEqual((await otherTabs()).map((t) => t.url), [fixture.url("/long")]);
 });
 
-test("a ref from one profile is refused in the other with the normal error", async () => {
-  const view = await mcp.call("browser_navigate", { url: fixture.url("/form") });
-  const refs = [...view.matchAll(/\[((?:f\d+)?e\d+)\]/g)].map((m) => m[1]);
-  const last = refs.at(-1);
-  await mcp.call("browser_navigate", { url: "about:blank", profile: "other" });
-  const result = await mcp.call("browser_click", { ref: last, profile: "other" }, true);
-  assert.equal(result.isError, true);
-  assert.match(mcp.text(result), new RegExp(`^${last} points at nothing on the page now: `));
-  const own = await mcp.call("browser_get_text", { ref: last }, true);
-  assert.ok(!own.isError, `the ref still works in its own profile: ${mcp.text(own).slice(0, 200)}`);
+test("a ref works only in the profile it came from, even when the other profile holds the same ref on its own page", async () => {
+  const refs = (view) => [...view.matchAll(/\[((?:f\d+)?e\d+)(@[a-z-]+)?\]/g)].map((m) => m[1] + (m[2] ?? ""));
+  // A ref names the document (f<n>), and each browser counts its own documents. Load the same page in both until the
+  // counts agree, so that both profiles show exactly the same refs.
+  const document = (view) => Number(refs(view)[0].match(/^f(\d+)/)[1]);
+  let mine = await mcp.call("browser_navigate", { url: fixture.url("/form") });
+  let theirs = await mcp.call("browser_navigate", { url: fixture.url("/form"), profile: "other" });
+  for (let i = 0; i < 40 && document(mine) !== document(theirs); i++) {
+    if (document(mine) < document(theirs)) mine = await mcp.call("browser_navigate", { url: fixture.url(`/form?again=${i}`) });
+    else theirs = await mcp.call("browser_navigate", { url: fixture.url(`/form?again=${i}`), profile: "other" });
+  }
+  const first = refs(mine);
+  const second = refs(theirs);
+  assert.ok(first.length > 2 && !first.some((r) => r.includes("@")), `the default profile's refs have no tag: ${first}`);
+  assert.ok(second.every((r) => r.endsWith("@other")), `the other profile's refs carry its name: ${second}`);
+  assert.deepEqual(second.map((r) => r.replace("@other", "")), first, "the two pages hold the same refs: only the tag tells them apart");
+  const last = first.at(-1);
+  // The default profile's ref, used in the other profile: refused by the tag, not acted on although the same ref names an element there.
+  const bare = await mcp.call("browser_click", { ref: last, profile: "other" }, true);
+  assert.equal(bare.isError, true);
+  assert.match(mcp.text(bare), new RegExp(`^${last} has no profile tag, so it is a ref of the default profile, and this call is for profile other: `));
+  const crossed = await mcp.call("browser_click", { ref: `${last}@other` }, true);
+  assert.equal(crossed.isError, true);
+  assert.match(mcp.text(crossed), new RegExp(`^${last}@other is a ref of profile other, and this call is for profile default: `));
+  assert.equal((await tabs()).length, 1);
+  assert.equal((await otherTabs()).length, 1);
+  for (const [ref, profile] of [[last, "default"], [`${last}@other`, "other"]]) {
+    const own = await mcp.call("browser_get_text", { ref, profile }, true);
+    assert.ok(!own.isError, `${ref} works in its own profile: ${mcp.text(own).slice(0, 200)}`);
+  }
 });
 
 test("each fence holds on its own list: the same address is refused in one profile and opened in the other", async () => {

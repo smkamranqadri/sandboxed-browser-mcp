@@ -23,7 +23,7 @@ without it, the commands are printed instead). A client that already has a serve
 | `uninstall` | Stops every stack, removes the client entries it added and the install directory. `--purge` also deletes every browser profile; with more than one it lists them and needs `--yes`. |
 | `profile add <name> [--hosts …]` | Starts another, separate browser (see [Profiles](#profiles)). |
 | `profile list` | Shows each profile: name, ports, allowed hosts, state. |
-| `profile remove <name> [--purge]` | Stops that profile's browser; its sessions stay unless `--purge`. |
+| `profile remove <name> [--purge]` | Stops that profile's browser; its sessions (volume) stay unless `--purge`. A kept volume is recorded in `.kept-profiles`: `profile add <name>` brings it back, and `profile remove <name> --purge` or `uninstall --purge` can still delete it. |
 | `--ref v1.0.0` | Installs that release instead of the newest. |
 | `--dir <path>` | Installs somewhere else. |
 | `--help` | Lists the rest. |
@@ -85,27 +85,30 @@ install.sh profile remove work            # stops it, keeps its sessions; --purg
 - Another profile `N` is the same compose file under the project `sandboxed-browser-mcp-N`, with its own env file
   `profiles/N/.env` (mode 600; its password, ports and `BROWSER_ALLOWED_HOSTS`). Ports are the first free ones from
   `3101`, `9322` and `8082` upward, on `127.0.0.1`. Names: lowercase letters, digits and `-`, starting with a letter,
-  at most 24 characters; `default` and `test` are reserved.
+  at most 24 characters; `default`, `test` and every `test-*` are reserved (the test stacks use those project names, and
+  `npm run stack:test-b:down` deletes their volumes).
 - Each running profile costs about 1 GB of shared memory plus its Chromium. There is no cap in the code.
 - `profiles.json` in the install folder (written by `install.sh`; name, CDP port and hosts of each profile, no
   password) is how the server learns them, when it starts. Restart your MCP clients after adding or removing a profile.
   Without that file (a manual setup, or a 1.1.0 install not yet updated) there is one profile, `default`, from
   `BROWSER_CDP_URL` and `BROWSER_ALLOWED_HOSTS`, as before.
-- With a `profiles.json`, each profile's hosts come from it. `BROWSER_ALLOWED_HOSTS` on the client entry is then
-  ignored (the server says so on stderr when it differs from the default profile's hosts). The same value is also in
+- With a `profiles.json`, each profile's hosts come from it. A client entry that still sets `BROWSER_ALLOWED_HOSTS`
+  (1.1.0 put the hosts there) to a list that differs from the default profile's hosts makes the server refuse to start,
+  with a message saying so: two fences that disagree would leave one of them silently unused. Remove the variable from
+  the client entry and set the hosts in `docker/.env` (then `install.sh update`), or make the lists equal. The same value is also in
   the profile's env file, for the browser's own policy. To change a profile's hosts, edit its env file and
   `profiles.json`, then `docker compose` up again for that project; `install.sh update` rebuilds `profiles.json` from
   the env files.
 - `BROWSER_PROFILES` on a client entry limits that client to some profiles (`BROWSER_PROFILES=personal`). Other names
-  are refused, and if `default` is not in the list a call must name a profile. Unset: all profiles.
-- A ref belongs to the profile that showed it; used with another profile it gets the usual "points at nothing" error.
+  are refused, and if `default` is not in the list a call must name a profile. Unset: all profiles. `install.sh` does not set it: add it yourself to the client entry (for example `claude mcp add -s user browser-personal -e BROWSER_PROFILES=personal -- node "$HOME/.local/share/sandboxed-browser-mcp/dist/server.js"`).
+- A ref belongs to the profile that showed it. When a client has several profiles, refs of every profile but `default` end in `@name` (`e12@work`), and a call refuses a ref of another profile with a clear error.
 - Calls still run one at a time, across all profiles. Each profile keeps its own followed tab.
 - `install.sh` reads `COMPOSE_PROJECT_NAME`, if set, as the base of the project names (for a trial install next to a
   real one). Do not set it on a normal install.
 
 ## Allowed hosts
 
-`BROWSER_ALLOWED_HOSTS` is set in two places, and nothing checks that they match:
+`BROWSER_ALLOWED_HOSTS` is set in two places. Without a `profiles.json` nothing checks that they match; with one, the server refuses to start when the client entry's list differs from the default profile's:
 
 - on the MCP server (the `--env` / `-e` above), for the server's own checks;
 - in `docker/.env`, where it becomes a Chromium policy (`docker/policy.sh`, run by the compose file's `policy` service

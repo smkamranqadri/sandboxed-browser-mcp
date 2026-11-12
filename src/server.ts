@@ -19,6 +19,17 @@ import { validateArgs } from "./validate.js";
 let profiles: Profiles;
 try {
   profiles = new Profiles(loadProfiles(), clientLimit());
+  // With profiles.json, each profile's hosts come from it. A client entry that still sets BROWSER_ALLOWED_HOSTS (1.1.0
+  // put them there) to something else would be ignored while the person believes it is in force: the fence would fail
+  // open. So the server does not start until the two agree.
+  const entryHosts = parseAllowlist(process.env.BROWSER_ALLOWED_HOSTS);
+  const defaultHosts = profiles.all.find((p) => p.name === "default")?.hosts() ?? [];
+  const same = [...entryHosts].sort().join(",") === [...defaultHosts].sort().join(",");
+  if (existsSync(profilesPath()) && entryHosts.length && !same) {
+    throw new Error(
+      `BROWSER_ALLOWED_HOSTS on this client entry (${entryHosts.join(", ")}) differs from the default profile's hosts in profiles.json (${defaultHosts.length ? defaultHosts.join(", ") : "any host"}). The server will not start with two fences that disagree. Remove BROWSER_ALLOWED_HOSTS from the client entry, and set the hosts in docker/.env (then run install.sh update), or make the two lists the same.`,
+    );
+  }
 } catch (e) {
   console.error(`sandboxed-browser-mcp: ${e instanceof Error ? e.message : e}`);
   process.exit(1);
@@ -115,13 +126,5 @@ for (const p of profiles.all) {
   console.error(
     `sandboxed-browser-mcp: profile ${p.name}${profiles.names().includes(p.name) ? "" : " (not for this client)"}: browser at ${p.cdp()}; ${hosts.length ? `allowed hosts: ${hosts.join(", ")}` : "any host allowed"}`,
   );
-}
-// With profiles.json, the hosts of each profile come from it. A client entry that still sets BROWSER_ALLOWED_HOSTS to
-// something else would be silently ignored: say so.
-const sameHosts = (a: string[], b: string[]) => [...a].sort().join(",") === [...b].sort().join(",");
-const entryHosts = parseAllowlist(process.env.BROWSER_ALLOWED_HOSTS);
-const defaultHosts = profiles.all.find((p) => p.name === "default")?.hosts() ?? [];
-if (existsSync(profilesPath()) && entryHosts.length && !sameHosts(entryHosts, defaultHosts)) {
-  console.error("sandboxed-browser-mcp: BROWSER_ALLOWED_HOSTS differs from the default profile's hosts in profiles.json and is ignored: each profile's hosts come from profiles.json (install.sh profile add --hosts).");
 }
 console.error(`sandboxed-browser-mcp: ${defs.length} tools`);

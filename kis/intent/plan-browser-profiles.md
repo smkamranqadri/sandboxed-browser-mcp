@@ -17,9 +17,9 @@ an optional `profile` argument. Today there is one stack, one `profile` volume a
 4. The session keeps **one followed tab per profile**. Calls still run one at a time.
 5. `install.sh profile add|list|remove` manages profiles. One client entry `browser` serves all of them.
 6. Allowed hosts are per profile.
-7. `uninstall --purge` without `--profile` deletes every profile, after listing them; it needs `--yes` when more than
-   one exists.
-8. Names match `^[a-z][a-z0-9-]{0,23}$`. `default` and `test` are reserved.
+7. `uninstall --purge` deletes every profile (also removed ones whose volume was kept), after listing them; it needs
+   `--yes` when more than one exists. There is no `uninstall --profile`: `profile remove <name> [--purge]` does that.
+8. Names match `^[a-z][a-z0-9-]{0,23}$`. `default`, `test` and `test-*` are reserved.
 9. Order: profiles **before** Command Code as a client.
 
 10. Version 1.2.0: the new argument is optional.
@@ -68,7 +68,8 @@ there is one client entry. `profiles.json` holds only name, CDP port and hosts. 
   and files, but the tools do not. State it in `docs/security.md`, and in the server instructions: use a profile only
   when the user's task names it. The instructions text is a prompt, not a control.
 - The control (decision 11): a per-client list of allowed profiles, set in the client entry
-  (`BROWSER_PROFILES=personal`), so a client can be fenced to some profiles.
+  (`BROWSER_PROFILES=personal`), so a client can be fenced to some profiles. The installer does not set it; the person
+  adds it to the client entry by hand (documented in docs/configuration.md).
 - CDP stays unauthenticated on loopback: any local process reaches every profile. More profiles mean more such ports.
 - The fence is per profile, in both places (`profiles.json`/entry env for the server, the profile's `.env` for the
   Chromium policy). `profile add --hosts` writes both from one value; `profile list` shows them.
@@ -102,10 +103,10 @@ override, ports), `docs/{configuration,security,how-it-works,testing}.md`, `READ
 - A 1.1.0 install updated keeps its volume and sessions: write a cookie in the old stack, update, read it back.
 - Every tool without `profile` gives the same answers as 1.1.0 (kept tests pass unchanged).
 - Two profiles run together: different ports and passwords; a cookie set in one is absent in the other; each fence
-  holds on its own list; a ref from one is refused in the other; each profile has its own followed tab.
+  holds on its own list; a ref from one is refused in the other (refs carry the profile tag when there are several); each profile has its own followed tab.
 - Unknown or invalid profile names fail with one plain error before any browser work.
-- `profile remove N` leaves `default` untouched; `--purge` deletes only `N`'s volume. `uninstall --purge` lists all
-  profiles and needs `--yes` with more than one.
+- `profile remove N` leaves `default` untouched; `--purge` deletes only `N`'s volume (also one kept by an earlier
+  remove). `uninstall --purge` lists all profiles and needs `--yes` with more than one.
 - Bad names (`Work`, `a b`, `../x`, `default`, `test`, 25 characters, empty) fail before any docker call.
 - Tool list: the same twelve tools; each has the optional `profile` property and nothing else changed.
 

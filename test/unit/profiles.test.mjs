@@ -34,6 +34,7 @@ test("profiles.json: names, ports and hosts are read; a bad file is an error tha
   bad(file(entry("Work")), /^Error: profile 1 has no valid name/);
   bad(file(entry("a b")), /^Error: profile 1 has no valid name/);
   bad(file(entry("default"), entry("default")), /^Error: profile "default" is listed twice$/);
+  bad(file(entry("a", 9322), entry("b", 9322)), /^Error: profiles "a" and "b" have the same cdpPort 9322$/);
   bad(file(entry("work", 0)), /^Error: profile "work" has no valid cdpPort$/);
   bad(file(entry("work", "9322")), /^Error: profile "work" has no valid cdpPort$/);
   bad(file(entry("work", 70000)), /^Error: profile "work" has no valid cdpPort$/);
@@ -214,13 +215,15 @@ test("two profiles at once: each has its own connection and followed tab, and a 
   assert.equal(w.state.connects, 1, "one connection per profile, kept");
 });
 
-test("a ref shown by one profile is not found in another: the normal 'points at nothing' error", async () => {
+test("a ref shown by one profile is refused in another by its tag; its own profile finds it", async () => {
   browsers.set("http://127.0.0.1:20001", fakeProfileBrowser("d", ["e1"]));
   browsers.set("http://127.0.0.1:20002", fakeProfileBrowser("w", ["e1", "e7"]));
   const tools = toolsOf([profileAt("default", 20001), profileAt("work", 20002)]);
-  await call(tools, "browser_click", { ref: "e7", profile: "work" });
-  await assert.rejects(call(tools, "browser_click", { ref: "e7" }), /^Error: e7 points at nothing on the page now: /);
-  await assert.rejects(call(tools, "browser_click", { ref: "e7", profile: "default" }), /^Error: e7 points at nothing on the page now: /);
+  await call(tools, "browser_click", { ref: "e7@work", profile: "work" });
+  await assert.rejects(call(tools, "browser_click", { ref: "e7" }), /^Error: e7 points at nothing on the page now: /, "the default profile has no e7");
+  await assert.rejects(call(tools, "browser_click", { ref: "e7", profile: "work" }), /^Error: e7 has no profile tag, so it is a ref of the default profile, and this call is for profile work: /);
+  await assert.rejects(call(tools, "browser_click", { ref: "e7@work", profile: "default" }), /^Error: e7@work is a ref of profile work, and this call is for profile default: /);
+  await assert.rejects(call(tools, "browser_click", { ref: "e1@default", profile: "work" }), /^Error: e1@default is a ref of the default profile, and this call is for profile work: /);
 });
 
 test("an unknown, invalid or unavailable profile fails with one plain error before any browser work", async () => {

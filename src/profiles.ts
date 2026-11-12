@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { cdpUrl } from "./cdp.js";
 import { allowlist, parseAllowlist } from "./guard.js";
 
@@ -31,6 +32,7 @@ export function parseProfiles(text: string): Profile[] {
   const list = (data as { profiles?: unknown } | null)?.profiles;
   if (!Array.isArray(list)) throw new Error('it has no "profiles" list');
   const seen = new Set<string>();
+  const ports = new Map<number, string>();
   return list.map((raw, i) => {
     const entry = raw as { name?: unknown; cdpPort?: unknown; hosts?: unknown } | null;
     const name = entry?.name;
@@ -39,6 +41,10 @@ export function parseProfiles(text: string): Profile[] {
     seen.add(name);
     const port = entry?.cdpPort;
     if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`profile "${name}" has no valid cdpPort`);
+    // Two profiles on one browser would share its sessions and its fence.
+    const sharing = ports.get(port);
+    if (sharing !== undefined) throw new Error(`profiles "${sharing}" and "${name}" have the same cdpPort ${port}`);
+    ports.set(port, name);
     const hosts = entry?.hosts;
     if (!Array.isArray(hosts) || hosts.some((h) => typeof h !== "string")) throw new Error(`profile "${name}": hosts must be a list of strings`);
     const fence = parseAllowlist((hosts as string[]).join(","));
@@ -47,7 +53,7 @@ export function parseProfiles(text: string): Profile[] {
 }
 
 /** Where profiles.json is: BROWSER_PROFILES_FILE, else the install folder (one above dist/). */
-export const profilesPath = (): string => process.env.BROWSER_PROFILES_FILE || new URL("../profiles.json", import.meta.url).pathname;
+export const profilesPath = (): string => process.env.BROWSER_PROFILES_FILE || fileURLToPath(new URL("../profiles.json", import.meta.url));
 
 /** All profiles of this install: from profiles.json, else the one `default` from the environment (read at each use). */
 export function loadProfiles(): Profile[] {

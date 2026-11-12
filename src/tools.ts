@@ -7,7 +7,7 @@ import { ToolError } from "./errors.js";
 import { hostAllowed, urlRefusal } from "./guard.js";
 import { keyCombo } from "./keys.js";
 import { ensureGuard, stopGuard, takeRefusals, type Refusal } from "./navguard.js";
-import { checkRef, gone, refGoneError } from "./refs.js";
+import { checkRef, gone, refGoneError, tagRefs } from "./refs.js";
 import { loadProfiles, clientLimit, Profiles, type Profile } from "./profiles.js";
 import { SCHEMAS, type Schema } from "./schema.js";
 import { channel, closed, exists, lastOpened } from "./tabs.js";
@@ -349,7 +349,11 @@ class Session {
   /** The connection to this profile's browser. */
   private readonly link: BrowserLink;
 
-  constructor(private readonly profile: Profile) {
+  constructor(
+    private readonly profile: Profile,
+    /** Whether the client has several profiles, so that refs of non-default profiles carry the profile's name. */
+    private readonly tagged = false,
+  ) {
     this.link = new BrowserLink(profile.cdp, profile.name);
     links.add(this.link);
   }
@@ -362,6 +366,17 @@ class Session {
   /** How an answer names a profile that is not the default one, where it says where the tab is. */
   private get tag(): string {
     return this.profile.name === "default" ? "" : ` (profile ${this.profile.name})`;
+  }
+
+  /** The ref a call gave, checked to belong to this profile. */
+  private ref(given: string): string {
+    return checkRef(given, { profile: this.profile.name, tagged: this.tagged });
+  }
+
+  /** An answer with the profile's tag on its refs, when refs carry one. */
+  tagAnswer<T extends { content: Content[] }>(result: T): T {
+    if (!this.tagged || this.profile.name === "default") return result;
+    return { ...result, content: result.content.map((c) => (c.type === "text" ? { ...c, text: tagRefs(c.text, this.profile.name) } : c)) };
   }
 
   private off(url: string): string | null {
@@ -693,7 +708,7 @@ class Session {
    * selection stays; the answer points to browser_upload instead.
    */
   async click(given: string, double: boolean): Promise<string> {
-    const ref = checkRef(given);
+    const ref = this.ref(given);
     const done = `${double ? "Double-clicked" : "Clicked"} ${ref}`;
     let capture: ChooserCapture | undefined;
     let clickedAt = 0;
@@ -741,7 +756,7 @@ class Session {
    * the file chooser it opens caught on this tab and given them.
    */
   async upload(given: string, files: unknown): Promise<string> {
-    const ref = checkRef(given);
+    const ref = this.ref(given);
     const prepared = await prepareFiles(files, { wanted: stillWanted });
     const payloads = prepared.map((f) => f.payload);
     let capture: ChooserCapture | undefined;
@@ -838,7 +853,7 @@ class Session {
   }
 
   async type(given: string, text: string, submit: boolean): Promise<string> {
-    const ref = checkRef(given);
+    const ref = this.ref(given);
     return this.perform(`Typed into ${ref}`, async (page) => {
       const locator = await this.element(page, ref);
       const role = this.shown(page, ref)?.role;
@@ -869,7 +884,7 @@ class Session {
   }
 
   async select(given: string, option: string): Promise<string> {
-    const ref = checkRef(given);
+    const ref = this.ref(given);
     return this.perform(`Chose "${option}" in ${ref}`, async (page) => {
       const locator = await this.element(page, ref);
       stillWanted();
@@ -914,7 +929,7 @@ class Session {
   }
 
   async scroll(direction: "down" | "up", screens: number, given?: string): Promise<string> {
-    const ref = given === undefined ? undefined : checkRef(given);
+    const ref = given === undefined ? undefined : this.ref(given);
     const page = await this.usableTab();
     return ref ? this.scrollTo(page, ref) : this.scrollBy(page, direction, screens);
   }
@@ -1000,7 +1015,7 @@ class Session {
   }
 
   async getText(given: string, offset: number, max: number): Promise<string> {
-    const ref = checkRef(given);
+    const ref = this.ref(given);
     const page = await this.usableTab();
     await this.element(page, ref);
     stillWanted();
@@ -1011,7 +1026,7 @@ class Session {
   }
 
   async screenshot(given?: string): Promise<Content> {
-    const ref = given === undefined ? undefined : checkRef(given);
+    const ref = given === undefined ? undefined : this.ref(given);
     const page = await this.usableTab();
     await page.bringToFront().catch(() => {});
     stillWanted();
@@ -1051,7 +1066,7 @@ export function browserTools(sessionId: string, profiles = new Profiles(loadProf
       throw new ToolError(e instanceof Error ? e.message : String(e));
     }
     let session = sessions.get(profile.name);
-    if (!session) sessions.set(profile.name, (session = new Session(profile)));
+    if (!session) sessions.set(profile.name, (session = new Session(profile, profiles.names().length > 1)));
     return session;
   };
   const tool = (
@@ -1069,7 +1084,7 @@ export function browserTools(sessionId: string, profiles = new Profiles(loadProf
     execute: async (_callId, args) => {
       const a = (args ?? {}) as Args;
       const session = sessionFor(a.profile);
-      return session.run(() => work(session, a));
+      return session.tagAnswer(await session.run(() => work(session, a)));
     },
   });
   return [

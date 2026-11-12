@@ -24,7 +24,7 @@ Commands:
   update     Install the newest release (or --ref) over the current one; keeps docker/.env and the browser profile.
   uninstall  Stop every stack, remove the client entries this script added, and delete the install directory.
   profile add <name>      Start another, separate browser (own sessions, ports, password, hosts). Names: ^[a-z][a-z0-9-]{0,23}$,
-                          not default or test. Ports are the first free ones from 3101, 9322 and 8082 up, on 127.0.0.1.
+                          not default, test or test-*. Ports are the first free ones from 3101, 9322 and 8082 up, on 127.0.0.1.
   profile list            Show each profile: name, ports, allowed hosts, state.
   profile remove <name>   Stop that profile's browser. Its sessions (volume) stay unless --purge is given.
 
@@ -114,7 +114,8 @@ base_project="${COMPOSE_PROJECT_NAME:-sandboxed-browser-mcp}"
 check_profile_name() {
   [[ -n "$1" ]] || die "profile: a name is needed (lowercase letters, digits and -, starting with a letter, at most 24 characters)"
   [[ "$1" =~ $PROFILE_RE ]] || die "profile: '$1' is not a valid name (lowercase letters, digits and -, starting with a letter, at most 24 characters)"
-  case "$1" in default | test) die "profile: '$1' is a reserved name" ;; esac
+  # `test` and test-* are the names of the test stacks (sandboxed-browser-mcp-test, -test-b): `npm run stack:test-b:down` deletes their volumes.
+  case "$1" in default | test | test-*) die "profile: '$1' is a reserved name" ;; esac
 }
 
 env_file_of() { if [[ "$1" == default ]]; then echo "$dir/docker/.env"; else echo "$dir/profiles/$1/.env"; fi; }
@@ -136,6 +137,23 @@ profile_names() {
       if [[ "$n" =~ $PROFILE_RE && -f "$dir/profiles/$n/.env" ]]; then echo "$n"; fi
     done
   fi
+}
+
+# Profiles removed without --purge: their volumes (sessions) stay, so that profile add brings them back and a purge
+# can still delete them. One name per line.
+kept_file() { echo "$dir/.kept-profiles"; }
+kept_names() { if [[ -f "$(kept_file)" ]]; then grep -E "$PROFILE_RE" "$(kept_file)" | sort -u || true; fi; }
+is_kept() { kept_names | grep -qx "$1"; }
+forget_kept() { if is_kept "$1"; then { kept_names | grep -vx "$1" || true; } >"$(kept_file).tmp" && mv "$(kept_file).tmp" "$(kept_file)"; fi; }
+remember_kept() { if ! is_kept "$1"; then echo "$1" >>"$(kept_file)"; fi; }
+
+# Deletes the docker volumes of profile $1's project, whatever env file it had. Succeeds when none is left.
+drop_volumes() {
+  local ids
+  ids="$(docker volume ls -q --filter "label=com.docker.compose.project=$base_project-$1" 2>/dev/null)" || return 1
+  [[ -z "$ids" ]] && return 0
+  # shellcheck disable=SC2086
+  docker volume rm $ids >/dev/null 2>&1
 }
 
 # docker compose for profile $1. A profile's stack takes nothing from the shell's BROWSER_* variables.
@@ -352,6 +370,7 @@ case "$command_name" in
     cp -p "$dir/docker/.env" "$stage/docker/.env"
     [[ ! -f "$dir/.clients" ]] || cp -p "$dir/.clients" "$stage/.clients"
     [[ ! -d "$dir/profiles" ]] || cp -pR "$dir/profiles" "$stage/profiles"
+    [[ ! -f "$dir/.kept-profiles" ]] || cp -p "$dir/.kept-profiles" "$stage/.kept-profiles"
     rm -rf "$dir.old"
     mv "$dir" "$dir.old"
     mv "$stage" "$dir"
@@ -369,13 +388,20 @@ case "$command_name" in
   uninstall)
     [[ -d "$dir" ]] || die "not installed in $dir"
     all="$(profile_names | tr '\n' ' ')"
-    if $purge && [[ "$all" != "default " ]] && ! $yes; then
-      die "uninstall --purge would delete the sessions (volumes) of every profile: ${all% }. Run it again with --yes to confirm, or remove profiles one by one with: profile remove <name> --purge"
+    kept="$(kept_names | tr '\n' ' ')"
+    if $purge && [[ "$all$kept" != "default " ]] && ! $yes; then
+      die "uninstall --purge would delete the sessions (volumes) of every profile: ${all% }${kept:+, and of the removed profiles ${kept% }}. Run it again with --yes to confirm, or remove profiles one by one with: profile remove <name> --purge"
     fi
+    failed=""
     if [[ -f "$dir/docker/compose.yaml" ]] && command -v docker >/dev/null 2>&1; then
       for n in $(profile_names); do
-        if $purge; then pcompose "$n" down -v >/dev/null 2>&1 || true; else pcompose "$n" down >/dev/null 2>&1 || true; fi
+        if $purge; then pcompose "$n" down -v >/dev/null 2>&1 || failed+="$n "; else pcompose "$n" down >/dev/null 2>&1 || true; fi
       done
+      if $purge; then
+        for n in $kept; do drop_volumes "$n" || failed+="$n "; done
+      fi
+    elif $purge; then
+      failed="$all$kept"
     fi
     if [[ -f "$dir/.clients" ]]; then
       while read -r client; do
@@ -388,7 +414,12 @@ case "$command_name" in
       done <"$dir/.clients"
     fi
     rm -rf "$dir"
-    say "removed $dir$($purge && echo ' and the browser profiles' || echo '; the browser profiles (docker volumes) are kept: uninstall --purge removes them')"
+    if $purge; then
+      say "removed $dir; sessions deleted for: $(echo "$all$kept" | tr ' ' '\n' | grep -vxF -f <(echo "$failed" | tr ' ' '\n') | grep . | tr '\n' ' ')"
+      [[ -z "${failed// /}" ]] || die "could not delete the sessions (docker volumes) of: ${failed% }; delete them with docker volume rm"
+    else
+      say "removed $dir; the browser profiles (docker volumes) are kept: uninstall --purge removes them"
+    fi
     ;;
   profile)
     case "$profile_cmd" in
@@ -398,6 +429,7 @@ case "$command_name" in
         [[ -f "$dir/docker/.env" ]] || die "not installed in $dir"
         [[ ! -e "$dir/profiles/$profile_name" ]] || die "profile $profile_name exists (profile list shows it)"
         check_hosts "$hosts" "$dir"
+        if is_kept "$profile_name"; then say "profile $profile_name: its kept sessions (docker volume) are used again"; fi
         web="$(pick_port BROWSER_WEB_PORT 3101)"
         cdp="$(pick_port BROWSER_CDP_PORT 9322)"
         stream="$(pick_port BROWSER_STREAM_PORT 8082)"
@@ -407,6 +439,7 @@ case "$command_name" in
           printf 'BROWSER_PASSWORD=%s\nBROWSER_ALLOWED_HOSTS=%s\nBROWSER_WEB_PORT=%s\nBROWSER_CDP_PORT=%s\nBROWSER_STREAM_PORT=%s\n' \
             "$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32)" "$hosts" "$web" "$cdp" "$stream" >"$dir/profiles/$profile_name/.env"
         )
+        forget_kept "$profile_name"
         sync_profiles
         if ! start_stack "$profile_name"; then
           pcompose "$profile_name" down -v >/dev/null 2>&1 || true
@@ -432,12 +465,24 @@ case "$command_name" in
         [[ -n "$profile_name" ]] || die "profile remove needs a name"
         [[ "$profile_name" =~ $PROFILE_RE ]] || die "profile: '$profile_name' is not a valid name"
         [[ "$profile_name" != default ]] || die "profile: default is the install's own browser; uninstall removes it"
-        [[ -f "$dir/profiles/$profile_name/.env" ]] || die "no profile named $profile_name (profile list shows them)"
         need_tools docker
-        if $purge; then pcompose "$profile_name" down -v; else pcompose "$profile_name" down; fi
-        rm -rf "$dir/profiles/$profile_name"
-        sync_profiles
-        say "profile $profile_name removed$($purge && echo ' with its sessions' || echo '; its sessions (docker volume) are kept: profile add with the same name brings them back, remove --purge deletes them')"
+        if [[ -f "$dir/profiles/$profile_name/.env" ]]; then
+          if $purge; then pcompose "$profile_name" down -v || die "profile $profile_name: could not delete its sessions"; else pcompose "$profile_name" down; fi
+          rm -rf "$dir/profiles/$profile_name"
+          sync_profiles
+          if $purge; then
+            say "profile $profile_name removed with its sessions"
+          else
+            remember_kept "$profile_name"
+            say "profile $profile_name removed; its sessions (docker volume) are kept: profile add $profile_name brings them back, profile remove $profile_name --purge deletes them"
+          fi
+        elif $purge && is_kept "$profile_name"; then
+          drop_volumes "$profile_name" || die "profile $profile_name: could not delete its sessions (docker volume rm)"
+          forget_kept "$profile_name"
+          say "profile $profile_name: its kept sessions are deleted"
+        else
+          die "no profile named $profile_name (profile list shows them)$($purge && echo '; no kept sessions of that name either')"
+        fi
         ;;
     esac
     ;;

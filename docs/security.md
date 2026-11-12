@@ -51,7 +51,9 @@ What sandboxed-browser-mcp protects, and what it does not. To report a problem, 
   (prompt injection) in `personal` can call `browser_navigate` with `profile: "work"` and act in the signed-in
   sessions there. The server instructions tell the model to use a profile only when the user's task names it; that
   is a prompt, not a control. The control is `BROWSER_PROFILES` on a client entry (`BROWSER_PROFILES=personal`): a
-  client fenced to some profiles is refused the others by the server, before any browser work. It limits a client, not
+  client fenced to some profiles is refused the others by the server, before any browser work. Refs are tied to their
+  profile (`e12@work`), so a ref from one profile cannot act on an element of another by accident. A client entry
+  that still sets `BROWSER_ALLOWED_HOSTS` to a list differing from `profiles.json` makes the server refuse to start. It limits a client, not
   a person: any local process can still reach every profile's CDP port. The allowed hosts are per profile (the
   server's guard reads `profiles.json`, the browser's policy reads the profile's env file, both written from one
   `--hosts` value). More profiles are more unauthenticated CDP ports on loopback, and about 1 GB of memory each.

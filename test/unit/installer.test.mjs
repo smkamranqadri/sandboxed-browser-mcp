@@ -23,8 +23,23 @@ before(() => {
   shims = path.join(work, "bin");
   mkdirSync(shims);
   log = path.join(work, "docker.log");
-  // `ps --status running -q browser` answers a container id for a stack the test marked as running; everything else is silent.
-  writeFileSync(path.join(shims, "docker"), `#!/bin/sh\nprintf '%s\\n' "$*" >>"${log}"\nprintf '%s | %s\\n' "$*" "$(env | grep '^BROWSER_' | sort | tr '\\n' ' ')" >>"${log}.env"\ncase "$*" in *"ps --status running"*) echo abc123 ;; esac\nexit 0\n`);
+  // `ps --status running -q browser` answers a container id for a stack the test marked as running; `volume ls` answers the
+  // volumes SHIM_VOLUMES ("project=volume,...") has for the project in its filter; `volume rm` fails when SHIM_RM_FAIL is set.
+  const shim = [
+    "#!/bin/sh",
+    `printf '%s\\n' "$*" >>"${log}"`,
+    `printf '%s | %s\\n' "$*" "$(env | grep '^BROWSER_' | sort | tr '\\n' ' ')" >>"${log}.env"`,
+    'case "$*" in',
+    '  *"ps --status running"*) echo abc123 ;;',
+    '  "volume ls"*) for pair in $(echo "$SHIM_VOLUMES" | tr , " "); do case "$*" in *"project=${pair%%=*}") echo "${pair#*=}" ;; esac; done ;;',
+    '  "volume rm"*) [ -z "$SHIM_RM_FAIL" ] || exit 1 ;;',
+    "esac",
+    "exit 0",
+    "",
+  ].join("\n");
+  writeFileSync(path.join(shims, "docker"), shim);
+  writeFileSync(path.join(shims, "npm"), "#!/bin/sh\nexit 0\n");
+  chmodSync(path.join(shims, "npm"), 0o755);
   writeFileSync(path.join(shims, "curl"), "#!/bin/sh\nexit 0\n");
   chmodSync(path.join(shims, "docker"), 0o755);
   chmodSync(path.join(shims, "curl"), 0o755);
@@ -64,7 +79,7 @@ const firstFree = async (from, taken = []) => {
 
 test("a bad profile name fails before any docker call and creates nothing", () => {
   const dir = scratch("names");
-  for (const bad of ["Work", "a b", "../x", "default", "test", "a".repeat(25), "1work", "work_2", ""]) {
+  for (const bad of ["Work", "a b", "../x", "default", "test", "test-b", "test-x", "a".repeat(25), "1work", "work_2", ""]) {
     const r = run(dir, ["profile", "add", ...(bad ? [bad] : [])]);
     assert.notEqual(r.status, 0, JSON.stringify(bad));
     assert.match(r.out, /^install\.sh: profile: /, JSON.stringify(bad));
@@ -73,7 +88,9 @@ test("a bad profile name fails before any docker call and creates nothing", () =
   }
   const reserved = run(dir, ["profile", "add", "default"]);
   assert.match(reserved.out, /profile: 'default' is a reserved name/);
-  assert.match(run(dir, ["profile", "add", "test"]).out, /profile: 'test' is a reserved name/);
+  for (const name of ["test", "test-b", "test-x"]) assert.match(run(dir, ["profile", "add", name]).out, new RegExp(`^install\\.sh: profile: '${name}' is a reserved name`));
+  assert.equal(run(dir, ["profile", "add", "testing", "--hosts", "bad host name"]).status, 1, "testing is not reserved (the hosts check fails after the name check)");
+  assert.match(run(dir, ["profile", "add", "testing", "--hosts", "bad host name"]).out, /^install\.sh: --hosts: /);
   assert.match(run(dir, ["profile", "add", "a".repeat(24).toUpperCase()]).out, /not a valid name/);
   assert.equal(run(dir, ["profile", "add", "a".repeat(24), "--hosts", "bad host name"]).status, 1, "a 24-character name passes the name check (then the hosts check fails)");
 });
@@ -171,10 +188,12 @@ test("profile remove stops only that stack: its volume stays unless --purge; def
   const dir = scratch("remove");
   run(dir, ["profile", "add", "work"]);
   run(dir, ["profile", "add", "personal"]);
-  for (const bad of [["default"], ["nope"], ["../x"], [""]]) {
+  for (const bad of [["default"], ["nope"], ["../x"], ["Work"], [""]]) {
     const r = run(dir, ["profile", "remove", ...bad.filter(Boolean)]);
     assert.equal(r.status, 1, JSON.stringify(bad));
     if (bad[0] === "default") assert.match(r.out, /profile: default is the install's own browser; uninstall removes it/);
+    if (bad[0] === "nope") assert.match(r.out, /^install\.sh: no profile named nope /);
+    if (bad[0] === "../x" || bad[0] === "Work") assert.match(r.out, new RegExp(`^install\\.sh: profile: '${bad[0].replace(".", "\\.")}' is not a valid name`));
     assert.deepEqual(r.docker.filter((l) => / down( |$)/.test(l)), [], `no down for ${JSON.stringify(bad)}`);
   }
   const kept = run(dir, ["profile", "remove", "work"]);
@@ -216,4 +235,110 @@ test("uninstall --purge with more than one profile lists them and needs --yes; w
   const one = run(single, ["uninstall", "--purge"]);
   assert.equal(one.status, 0, one.out);
   assert.deepEqual(one.docker.filter((l) => / down( |$)/.test(l)).map((l) => l.replaceAll(single, "DIR")), ["compose --env-file DIR/docker/.env -f DIR/docker/compose.yaml down -v"]);
+});
+
+test("a profile removed without --purge keeps its volume, and --purge can still delete it later", () => {
+  const dir = scratch("kept");
+  run(dir, ["profile", "add", "work"]);
+  const removed = run(dir, ["profile", "remove", "work"]);
+  assert.match(removed.out, /its sessions \(docker volume\) are kept: profile add work brings them back, profile remove work --purge deletes them/);
+  assert.equal(readFileSync(path.join(dir, ".kept-profiles"), "utf8"), "work\n");
+  assert.ok(!existsSync(path.join(dir, "profiles", "work")));
+
+  const volumes = { SHIM_VOLUMES: "sandboxed-browser-mcp-work=sandboxed-browser-mcp-work_browser-config" };
+  const purged = run(dir, ["profile", "remove", "work", "--purge"], volumes);
+  assert.equal(purged.status, 0, purged.out);
+  assert.match(purged.out, /profile work: its kept sessions are deleted/);
+  assert.deepEqual(purged.docker.filter((l) => l.startsWith("volume")), ["volume ls -q --filter label=com.docker.compose.project=sandboxed-browser-mcp-work", "volume rm sandboxed-browser-mcp-work_browser-config"]);
+  assert.equal(readFileSync(path.join(dir, ".kept-profiles"), "utf8"), "", "forgotten once deleted");
+  const again = run(dir, ["profile", "remove", "work", "--purge"], volumes);
+  assert.equal(again.status, 1);
+  assert.match(again.out, /^install\.sh: no profile named work \(profile list shows them\); no kept sessions of that name either/);
+  assert.deepEqual(again.docker.filter((l) => l.startsWith("volume rm")), []);
+
+  // Without --purge a second remove deletes nothing: the name is not a profile any more.
+  const dir2 = scratch("kept-twice");
+  run(dir2, ["profile", "add", "work"]);
+  run(dir2, ["profile", "remove", "work"]);
+  const twice = run(dir2, ["profile", "remove", "work"], volumes);
+  assert.equal(twice.status, 1);
+  assert.match(twice.out, /^install\.sh: no profile named work \(profile list shows them\)\n$/);
+  assert.deepEqual(twice.docker.filter((l) => l.startsWith("volume")), [], "no volume touched without --purge");
+  assert.equal(readFileSync(path.join(dir2, ".kept-profiles"), "utf8"), "work\n");
+
+  const failing = scratch("kept-fail");
+  run(failing, ["profile", "add", "work"]);
+  run(failing, ["profile", "remove", "work"]);
+  const refused = run(failing, ["profile", "remove", "work", "--purge"], { ...volumes, SHIM_RM_FAIL: "1" });
+  assert.equal(refused.status, 1);
+  assert.match(refused.out, /could not delete its sessions/);
+  assert.equal(readFileSync(path.join(failing, ".kept-profiles"), "utf8"), "work\n", "still kept: it was not deleted");
+});
+
+test("profile add with the name of a kept profile uses its volume again and forgets the keeping", () => {
+  const dir = scratch("kept-add");
+  run(dir, ["profile", "add", "work"]);
+  run(dir, ["profile", "remove", "work"]);
+  const back = run(dir, ["profile", "add", "work"]);
+  assert.equal(back.status, 0, back.out);
+  assert.match(back.out, /profile work: its kept sessions \(docker volume\) are used again/);
+  assert.equal(readFileSync(path.join(dir, ".kept-profiles"), "utf8"), "");
+});
+
+test("uninstall --purge deletes the volumes of removed profiles too, and says which sessions it deleted", () => {
+  const dir = scratch("kept-uninstall");
+  run(dir, ["profile", "add", "work"]);
+  run(dir, ["profile", "add", "old"]);
+  run(dir, ["profile", "remove", "old"]);
+  const refused = run(dir, ["uninstall", "--purge"]);
+  assert.equal(refused.status, 1);
+  assert.match(refused.out, /of every profile: default work, and of the removed profiles old\. Run it again with --yes/);
+  const volumes = { SHIM_VOLUMES: "sandboxed-browser-mcp-old=sandboxed-browser-mcp-old_browser-config" };
+  // A removed profile alone (no other profile) is enough to need --yes.
+  const solo = scratch("kept-solo");
+  run(solo, ["profile", "add", "old"]);
+  run(solo, ["profile", "remove", "old"]);
+  const soloRefused = run(solo, ["uninstall", "--purge"], volumes);
+  assert.equal(soloRefused.status, 1, soloRefused.out);
+  assert.match(soloRefused.out, /of every profile: default, and of the removed profiles old\. Run it again with --yes/);
+  assert.ok(existsSync(solo));
+  const done = run(dir, ["uninstall", "--purge", "--yes"], volumes);
+  assert.equal(done.status, 0, done.out);
+  assert.deepEqual(done.docker.filter((l) => l.startsWith("volume")), ["volume ls -q --filter label=com.docker.compose.project=sandboxed-browser-mcp-old", "volume rm sandboxed-browser-mcp-old_browser-config"]);
+  assert.match(done.out, /sessions deleted for: default work old\s*$/);
+  assert.ok(!existsSync(dir));
+
+  const failing = scratch("kept-uninstall-fail");
+  run(failing, ["profile", "add", "old"]);
+  run(failing, ["profile", "remove", "old"]);
+  const bad = run(failing, ["uninstall", "--purge", "--yes"], { ...volumes, SHIM_RM_FAIL: "1" });
+  assert.equal(bad.status, 1, "a purge that could not delete a volume does not say it did");
+  assert.match(bad.out, /sessions deleted for: default\s/);
+  assert.match(bad.out, /could not delete the sessions \(docker volumes\) of: old; delete them with docker volume rm/);
+});
+
+test("update keeps the profiles folder and the kept list, writes profiles.json again, and restarts the other profiles", () => {
+  const dir = scratch("update");
+  run(dir, ["profile", "add", "work", "--hosts", "a.example.com"]);
+  run(dir, ["profile", "add", "gone"]);
+  run(dir, ["profile", "remove", "gone"]);
+  const before = readFileSync(path.join(dir, "profiles", "work", ".env"), "utf8");
+  // The release to install: a git checkout with the files update copies over.
+  const source = path.join(work, "update-source");
+  mkdirSync(path.join(source, "docker"), { recursive: true });
+  writeFileSync(path.join(source, "package.json"), '{"version":"9.9.9"}\n');
+  writeFileSync(path.join(source, "docker", "compose.yaml"), "name: sandboxed-browser-mcp\n");
+  copyFileSync(path.join(ROOT, "docker", "policy.sh"), path.join(source, "docker", "policy.sh"));
+  const git = (...a) => spawnSync("git", ["-C", source, ...a], { encoding: "utf8" });
+  git("init", "-q");
+  git("add", "-A");
+  rmSync(path.join(dir, "profiles.json"));
+  const r = run(dir, ["update", "--source", source]);
+  assert.equal(r.status, 0, r.out);
+  assert.equal(readFileSync(path.join(dir, "profiles", "work", ".env"), "utf8"), before, "the profile's env file (password, ports, hosts) came over unchanged");
+  assert.equal(readFileSync(path.join(dir, ".kept-profiles"), "utf8"), "gone\n");
+  assert.deepEqual(profilesJson(dir).profiles.map((p) => [p.name, p.hosts]), [["default", []], ["work", ["a.example.com"]]]);
+  assert.match(readFileSync(path.join(dir, "package.json"), "utf8"), /9\.9\.9/, "the new release is in place");
+  const ups = r.docker.filter((l) => l.includes(" up ")).map((l) => l.replaceAll(dir, "DIR"));
+  assert.deepEqual(ups, ["compose --env-file DIR/docker/.env -f DIR/docker/compose.yaml up -d --quiet-pull", "compose -p sandboxed-browser-mcp-work --env-file DIR/profiles/work/.env -f DIR/docker/compose.yaml up -d --quiet-pull"]);
 });

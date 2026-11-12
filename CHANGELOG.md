@@ -13,9 +13,12 @@
 
 ### Changed
 
-- `install.sh uninstall --purge` deletes every profile; with more than one it lists them and needs `--yes`.
+- `install.sh uninstall --purge` deletes every profile, removed ones included; with more than one it lists them and needs `--yes`.
 - `install.sh --client` no longer puts `BROWSER_ALLOWED_HOSTS` on the client entry: the server reads each profile's
-  hosts from `profiles.json`. Existing entries keep theirs; the server ignores it when it differs, and says so.
+  hosts from `profiles.json`. An existing entry that keeps a list differing from the default profile's makes the server refuse to start, with a message saying how to fix it, rather than run with a fence the person did not mean.
+- With several profiles, a ref of a profile other than `default` is shown with a tag (`[e12@work]`), and a call accepts only the refs of its own profile. Refs of the default profile and of a client with one profile are unchanged.
+- Names `test` and `test-*` are reserved for profiles (the test stacks use them). A duplicate `cdpPort` in `profiles.json` is an error.
+- `profile remove <name>` without `--purge` records the kept volume (`.kept-profiles`); `profile remove <name> --purge` and `uninstall --purge` delete kept volumes too, and say which sessions they deleted.
 
 ### Security
 

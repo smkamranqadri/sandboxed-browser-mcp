@@ -14,9 +14,15 @@ test stack, as was done for Claude Code, Codex and pi.
 Owner's: upload docs/assets/social-preview.png as the repo's social preview in GitHub settings (no API for it).
 
 Proof, profiles (2026-11-12, Linux):
-- `npm test`: 153 unit, 98 integration, 0 fail (test stack + second stack `stack:test-b`). One earlier full run had
-  one unrelated-looking integration failure (guard.test.mjs "once loaded", tab url empty); it passed 3 times alone and in
-  the next full run, so it is treated as flaky, not explained.
+- `npm test`: 161 unit, 98 integration, 0 fail (test stack + second stack `stack:test-b`). One earlier full run had
+  one integration failure (guard.test.mjs "once loaded", tab url empty); it did not repeat. Likely cause: /json/list read
+  right after the page was put back (the test now waits for the settled address); not proven, and the test stack was
+  possibly shared with another worktree.
+- Review fixes (2026-11-12): profiles.json path with fileURLToPath (space/non-ASCII install dir); refs carry the profile
+  tag when a client has several profiles; a client entry's BROWSER_ALLOWED_HOSTS that differs from profiles.json is a
+  failure to start; kept volumes are recorded (.kept-profiles) and purged; `test-*` reserved; duplicate cdpPort
+  refused; installer tests for update, name check, purge. 14 + 8 + 3 more mutants, caught. The plan was corrected: no
+  `uninstall --profile`, and BROWSER_PROFILES is set by hand in the client entry.
 - Mutation checks: 7 + 14 + 13 mutants of profiles.ts, tools.ts, navguard.ts, connection.ts, schema.ts, server.ts and
   install.sh, each caught by a named test; two survivors in install.sh were tightened and then caught; every file
   restored byte-identical (git diff clean).

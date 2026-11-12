@@ -311,7 +311,7 @@ Added 1.2.0; the plan, with the owner's decisions, is kis/intent/plan-browser-pr
   by `install.sh`, no password. A file that exists but cannot be read is a failure to start (never a fall-back: that
   would drop the fences). Without the file there is one profile, `default`, from `BROWSER_CDP_URL` and
   `BROWSER_ALLOWED_HOSTS`, read at each use, so 1.1.0 setups behave as before.
-- Names match `^[a-z][a-z0-9-]{0,23}$`. `install.sh` also reserves `default` and `test` for new profiles.
+- Names match `^[a-z][a-z0-9-]{0,23}$`. `install.sh` also reserves `default`, `test` and `test-*` for new profiles. A `cdpPort` used twice in `profiles.json` is an error.
 - `profile` on every tool: string, optional, default `"default"`. Its description lists the profile names the client
   may use (read at start, not an enum). It is never required.
 - A call with a name that breaks the rule, an unknown name, or a name `BROWSER_PROFILES` excludes fails first, with one
@@ -319,6 +319,12 @@ Added 1.2.0; the plan, with the owner's decisions, is kis/intent/plan-browser-pr
   words, not wrapped as page content). `BROWSER_PROFILES` (comma list, default all) limits a client; if it leaves out
   `default`, a call without `profile` is refused with the same kind of error. A name in it that is not a profile, or
   breaks the rule, is a failure to start.
+- Refs belong to one page of one profile. When the client has more than one profile, an answer writes the refs of every
+  profile but `default` with a tag, `[e12@work]` (and `f2e7@work`); a call takes only the tag of its own profile
+  (`e12@work` for `work`; a bare ref for `default`, `e12@default` also), and refuses any other with an error saying
+  which profile the ref is from. With one profile available, refs are unchanged.
+- A client entry's `BROWSER_ALLOWED_HOSTS` that differs from the default profile's hosts in `profiles.json` is a failure
+  to start (the fence must not silently be the other list).
 - Per profile, made on first use: the Playwright connection, the navigation guard (keyed by the profile's CDP
   address), the followed tab (section 3), the last view for the diff and the refs. Calls still run one at a time across
   all profiles, with the same time limit and abandonment. The allowlist check, the injection envelope and the upload

@@ -8,6 +8,20 @@ import { CDP, closeObservers, closeTabs, connectMcp, fixture, observe, refOf, ta
  */
 
 const urls = async () => (await tabs()).map((t) => t.url);
+/**
+ * The tab addresses once the tab has settled on `expected`. Right after a page was put back, /json/list can still show the
+ * tab with an empty address for a moment (the browser is between the error page and the restored one), so a single read
+ * is not a fair look; the end state is what matters, and a guard that does not restore never reaches it.
+ */
+async function settledUrls(expected, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let now = await urls();
+  while (JSON.stringify(now) !== JSON.stringify(expected) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+    now = await urls();
+  }
+  return now;
+}
 /** What the blocked host received for its page (the browser also asks it for a favicon). */
 const secretHits = async () => (await fixture.hits()).blocked.filter((u) => u === "/secret");
 const partner = /link "Partner shop"(?! \(new tab\))/;
@@ -119,7 +133,7 @@ describe("with BROWSER_ALLOWED_HOSTS=allowed.fixture.test,allowed.othersite.test
     const nav = await mcp.call("browser_navigate", { url: fixture.url("/later") }, true);
     assert.equal(nav.isError, true, mcp.text(nav));
     assert.match(mcp.text(nav), /^Blocked: blocked\.fixture\.test is not on the allowed hosts \(BROWSER_ALLOWED_HOSTS\), and http:\/\/allowed\.fixture\.test\/later led there\. You are still on allowed\.fixture\.test\.$/);
-    assert.deepEqual(await urls(), [fixture.url("/")]);
+    assert.deepEqual(await settledUrls([fixture.url("/")]), [fixture.url("/")]);
     assert.deepEqual((await fixture.hits()).blocked, []);
   });
 
