@@ -1,16 +1,17 @@
 # State
 
 Branch: main
+Stamp: main 610b8a6 b286ff61a770
 Mode: Standard
-Task: none in progress. 1.2.0 (named browser profiles, PR #11) is released: tag v1.2.0, GitHub release
-"sandboxed-browser-mcp 1.2.0: browser profiles", 2026-11-13. The maintainer's installed copy is still 1.1.0 until
-the owner runs `install.sh update`.
-Status: code, tests and docs of profiles merged (src/profiles.ts, per-profile Session/link/guard, optional `profile`
-on all twelve tools, `install.sh profile add|list|remove`, profiles.json, BROWSER_PROFILES).
-Blocker: none
-Next: the owner runs `install.sh update` on the installed copy; then support Command Code as a fourth client: an `install.sh --client cmd` registration (and its removal on
-uninstall), a row in the README's Supported agents table and docs/configuration.md, and one real session against the
-test stack, as was done for Claude Code, Codex and pi.
+Task: expose the running `facebook` profile to the active agent for a Facebook draft.
+Status: installed server is configured with `default` and `facebook`; both browser profiles are running. The global
+Codex MCP entry `browser` has no `BROWSER_PROFILES` filter. The active agent has not reloaded the MCP process.
+Blocker: the active Codex session still has a stale MCP connection; refreshing the status view did not restart it.
+Next: fully restart Codex so the MCP server reloads `profiles.json`, then call the browser tools with `profile: "facebook"`.
+
+Install proof (2026-11-16): `install.sh check` reports up to date (1.2.0, 610b8a639e0d); `codex mcp get browser` shows the enabled stdio entry pointing to `dist/server.js`; `docker compose ps` shows the browser and both relays up; CDP at `127.0.0.1:9322/json/version` returns Chrome/155.0.8059.79.
+Profile proof (2026-11-16): `install.sh profile list` shows `facebook` running (desktop 3102, CDP 9323, stream 8083); CDP at `127.0.0.1:9323/json/version` returns Chrome/155.0.8059.79.
+MCP availability proof (2026-11-16): installed `profiles.json` contains `default` and `facebook`; `codex mcp get browser` shows an enabled stdio entry with no environment filter. `src/server.ts` loads profile names at process startup.
 Owner's: upload docs/assets/social-preview.png as the repo's social preview in GitHub settings (no API for it).
 
 Proof, profiles (2026-11-12, Linux):
