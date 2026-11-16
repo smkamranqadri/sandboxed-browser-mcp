@@ -2,7 +2,7 @@ import test, { after, before, describe } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, linkSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, symlinkSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, linkSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { UPLOAD_LIMIT, UploadRefusal, prepareFiles } from "../../dist/upload.js";
@@ -47,7 +47,7 @@ const allowed = async (files, options = {}) => {
   assert.equal(out.length, files.length);
   return out;
 };
-const openFds = () => readdirSync("/proc/self/fd").length;
+const openFds = () => readdirSync(process.platform === "darwin" ? "/dev/fd" : "/proc/self/fd").length;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
 before(() => {
@@ -80,7 +80,7 @@ describe("paths", () => {
     const file = put("docs/plan.txt", "plan\n");
     const [byHome] = await allowed(["~/docs/plan.txt"]);
     const [absolute] = await allowed([file]);
-    assert.deepEqual([byHome.path, byHome.realPath, byHome.size], [file, file, 5]);
+    assert.deepEqual([byHome.path, byHome.realPath, byHome.size], [file, realpathSync(file), 5]);
     assert.deepEqual([absolute.path, absolute.size], [file, 5]);
     assert.deepEqual(byHome.payload, { name: "plan.txt", mimeType: "text/plain", buffer: Buffer.from("plan\n") });
     for (const rel of ["~sample/docs/plan.txt", "./docs/plan.txt", "docs/plan.txt", "~"]) await refused([rel], "relative path");
@@ -119,13 +119,14 @@ describe("paths", () => {
     writeFileSync(path.join(real, "docs", "plan.txt"), "x");
     writeFileSync(path.join(real, ".aws", "config"), "x");
     symlinkSync(real, linked);
+    const canonicalReal = realpathSync(real);
     const options = { home: linked };
-    for (const file of ["~/docs/plan.txt", path.join(linked, "docs", "plan.txt"), path.join(real, "docs", "plan.txt")]) {
+    for (const file of ["~/docs/plan.txt", path.join(linked, "docs", "plan.txt"), path.join(canonicalReal, "docs", "plan.txt")]) {
       const [out] = await prepareFiles([file], options);
-      assert.equal(out.realPath, path.join(real, "docs", "plan.txt"));
+      assert.equal(out.realPath, realpathSync(path.join(canonicalReal, "docs", "plan.txt")));
     }
     await assert.rejects(prepareFiles(["~/.aws/config"], options), (e) => e.rule === "denied location");
-    await assert.rejects(prepareFiles([path.join(real, ".aws", "config")], options), (e) => e.rule === "denied location");
+    await assert.rejects(prepareFiles([path.join(canonicalReal, ".aws", "config")], options), (e) => e.rule === "denied location");
   });
 
   test("symlinks: into a denied tree and out of the home are refused; inside and allowed both ways is allowed", async () => {
@@ -145,7 +146,7 @@ describe("paths", () => {
     await refused(["~/outside-link"], "outside home");
     symlinkSync(plain, at("plan-link"));
     const [out] = await allowed(["~/plan-link"]);
-    assert.deepEqual([out.path, out.realPath, out.payload.name], [at("plan-link"), plain, "plan-link"]);
+    assert.deepEqual([out.path, out.realPath, out.payload.name], [at("plan-link"), realpathSync(plain), "plan-link"]);
   });
 });
 
@@ -163,7 +164,10 @@ describe("the denylist", () => {
       put(rel);
       await refused([`~/${rel}`], "denied location");
     }
-    for (const rel of [".ssh-notes/todo.txt", ".config/ghostty/config", ".config/gh-extras/notes.txt", ".local/share/other/data.txt", ".Ssh/notes.txt", "aws/plan.txt"]) {
+    const allowedLookalikes = [".ssh-notes/todo.txt", ".config/ghostty/config", ".config/gh-extras/notes.txt", ".local/share/other/data.txt", "aws/plan.txt"];
+    // Default macOS filesystems are case-insensitive, so .Ssh aliases the denied .ssh directory.
+    if (process.platform !== "darwin") allowedLookalikes.push(".Ssh/notes.txt");
+    for (const rel of allowedLookalikes) {
       put(rel);
       await allowed([`~/${rel}`]);
     }
@@ -297,7 +301,38 @@ describe("a file changed between the check, the open and the read", () => {
       symlinkSync(at("moved-trip2"), at("trip2"));
     };
     const [out] = await allowed(["~/trip2/notes.txt"], { beforeOpen: beforeOpen2 });
-    assert.equal(out.realPath, at("moved-trip2/notes.txt"));
+    assert.equal(out.realPath, realpathSync(at("moved-trip2/notes.txt")));
+  });
+
+  test("a parent moved into .aws after open is refused by the post-open path and identity check", async () => {
+    put("after-open/notes.txt", "approved\n");
+    mkdirSync(at(".aws"), { recursive: true });
+    const beforeLocationCheck = () => {
+      renameSync(at("after-open"), at(".aws/after-open"));
+      symlinkSync(at(".aws/after-open"), at("after-open"));
+    };
+    await refused(["~/after-open/notes.txt"], "denied location", 0, { beforeLocationCheck });
+  });
+
+  test("an allowed post-open move is resolved and the checked handle still supplies the bytes", async () => {
+    put("after-open-allowed/notes.txt", "approved\n");
+    const beforeLocationCheck = () => {
+      renameSync(at("after-open-allowed"), at("moved-after-open-allowed"));
+      symlinkSync(at("moved-after-open-allowed"), at("after-open-allowed"));
+    };
+    const [out] = await allowed(["~/after-open-allowed/notes.txt"], { beforeLocationCheck });
+    assert.equal(out.realPath, realpathSync(at("moved-after-open-allowed/notes.txt")));
+    assert.equal(out.payload.buffer.toString(), "approved\n");
+  });
+
+  test("a post-open path that resolves to a different file is refused", async () => {
+    const file = put("identity/checked.txt", "approved\n");
+    put("identity/other.txt", "different\n");
+    const beforeLocationCheck = () => {
+      renameSync(file, at("identity/moved.txt"));
+      symlinkSync(at("identity/other.txt"), file);
+    };
+    await refused(["~/identity/checked.txt"], "changed while reading", 0, { beforeLocationCheck });
   });
 
   test("a regular file swapped for a FIFO with no writer before the open is refused at once, without waiting on it", { timeout: 5000 }, async () => {

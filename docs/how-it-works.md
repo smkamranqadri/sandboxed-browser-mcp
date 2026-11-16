@@ -58,7 +58,7 @@ gone is refused.
 
 ## Uploads
 
-`browser_upload` reads the files on the host, under the server's home only and minus a denylist of credential, key,
+`browser_upload` reads files on Linux and macOS hosts, under the server's home only and minus a denylist of credential, key,
 history and browser-profile files, and Playwright sends their bytes into the page over CDP: no folder is mounted into
 the container, and its own file dialog is never used. A file input, or a label for one, is given the files directly.
 Anything else is clicked once, with the file chooser it opens on the followed tab caught (no dialog appears) and given

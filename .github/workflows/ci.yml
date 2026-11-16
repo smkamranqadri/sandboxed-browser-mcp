@@ -29,6 +29,21 @@ jobs:
       - run: npm run test:unit
       - run: bash -n install.sh
 
+  upload-macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --test --test-reporter=spec test/unit/upload.test.mjs
+
   # The tools against a real Chromium: the test stack (docker/compose.test.yaml), as in the README's Tests section.
   integration:
     runs-on: ubuntu-24.04

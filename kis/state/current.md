@@ -1,13 +1,12 @@
 # State
 
 Branch: main
-Stamp: main 610b8a6 b286ff61a770
+Stamp: main e88cba5 76b5bde876e1
 Mode: Standard
-Task: expose the running `facebook` profile to the active agent for a Facebook draft.
-Status: installed server is configured with `default` and `facebook`; both browser profiles are running. The global
-Codex MCP entry `browser` has no `BROWSER_PROFILES` filter. The active agent has not reloaded the MCP process.
-Blocker: the active Codex session still has a stale MCP connection; refreshing the status view did not restart it.
-Next: fully restart Codex so the MCP server reloads `profiles.json`, then call the browser tools with `profile: "facebook"`.
+Task: release and push macOS support for `browser_upload` after KIS synchronization and review.
+Status: code, tests, docs, KIS plan and knowledge are updated. Local macOS unit suite passed 165/165 (upload suite 27/27); Linux Node 24 unit suite passed 165/165 and integration passed 98/98. GitHub-hosted CI has not run remotely.
+Blocker: none.
+Next: commit the verified change, inspect the project release process, create a release commit, then push. Facebook editor currently shows eight attached photos; Save as draft was clicked, but the UI remained in Saving with a publish prompt. Nothing was published; save completion is unconfirmed.
 
 Install proof (2026-11-16): `install.sh check` reports up to date (1.2.0, 610b8a639e0d); `codex mcp get browser` shows the enabled stdio entry pointing to `dist/server.js`; `docker compose ps` shows the browser and both relays up; CDP at `127.0.0.1:9322/json/version` returns Chrome/155.0.8059.79.
 Profile proof (2026-11-16): `install.sh profile list` shows `facebook` running (desktop 3102, CDP 9323, stream 8083); CDP at `127.0.0.1:9323/json/version` returns Chrome/155.0.8059.79.
@@ -61,5 +60,11 @@ Proof (2026-10-24, 1.0.0):
 - one real session each in Claude Code (Sonnet 5.5), Codex (gpt-6.1-sol), pi (gpt-6.1-sol)
 - from outside: README curl | bash installed v1.0.0, MCP call, check, uninstall --purge; update from older installs
 
-Not verified: macOS and Windows hosts (uploads are refused there by design); the clients' interactive modes; a real
-session with uploads in Codex or pi.
+Not verified: Windows upload refusal in a Windows runtime; the clients' interactive modes; a real session with uploads in Codex or pi.
+
+Upload attempt proof (2026-11-16): Facebook edit draft observed in profile `facebook`; the eight source JPEGs exist in Downloads (about 22 MiB total). Upload call on the Downloads paths and a second call using temporary home-folder copies both returned `Upload refused for files[0] (unreadable)`. `src/upload.ts` resolves the open handle via `/proc/self/fd`; `docs/security.md` documents Linux-only uploads. Temporary copies were removed.
+
+Linux proof (2026-11-16, Node 24.22.3): `npm run test:unit` passed 165/165; with disposable test stacks, `npm run test:integration` passed 98/98. Both stacks were stopped with `down -v`; generated `docker/.env.test*` files were removed.
+
+Facebook check (2026-11-16): editor showed 8 uploaded media tiles and collage preview. Clicked `Save as draft`; Facebook stayed in `Saving` with an event prompt offering `Publish Original Post`. That option was not selected; draft save completion is unconfirmed.
+macOS proof (2026-11-16): `npm run test:unit` passed 165/165; focused `test/unit/upload.test.mjs` passed 27/27. `git diff --check` passed. Linux proof is recorded above.

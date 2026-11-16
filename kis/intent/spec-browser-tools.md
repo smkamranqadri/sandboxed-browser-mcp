@@ -269,8 +269,8 @@ each rule is there, is kis/intent/plan-file-upload.md.
     folders and files (`.ssh`, `.gnupg`, `.aws`, `.config/gh`, `.mozilla`, `.claude`, `.netrc`, shell histories …),
     `.env` and `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx` (any case), and SSH private keys by exact name.
   - Only a regular file with one hard link, checked before it is opened, opened without following a final symlink or
-    waiting on a pipe, the same file on the open handle, and the handle's real location (`/proc/self/fd`) checked
-    again. Linux only: elsewhere that last check refuses every file.
+    waiting on a pipe, then re-resolved and compared by device and inode with the same open handle before reading.
+    Uploads are supported on Linux and macOS; other operating systems refuse them.
   - The bytes are read through that handle; what is read must be the handle's size, and a call's files must total
     under 52,428,800 bytes. Playwright gets name, MIME type and bytes, never a path.
 - A refusal of a path is the server's own words (not wrapped as page content): `Upload refused for files[<n>] (<rule>):

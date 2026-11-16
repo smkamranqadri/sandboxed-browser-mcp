@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, open, readlink, realpath } from "node:fs/promises";
+import { lstat, open, realpath, stat as statPath } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { ToolError } from "./errors.js";
@@ -29,6 +29,8 @@ export type UploadOptions = {
   wanted?: () => void;
   /** Test barriers: awaited once a file's path has passed its checks (before it is opened), and once it is open (before it is read). */
   beforeOpen?: (index: number) => Promise<void> | void;
+  /** Test barrier after the file is open and checked, before its current path is re-resolved. */
+  beforeLocationCheck?: (index: number) => Promise<void> | void;
   beforeRead?: (index: number) => Promise<void> | void;
 };
 
@@ -150,6 +152,7 @@ export async function prepareFiles(files: unknown, options: UploadOptions = {}):
     const refuse = (rule: UploadRule): never => {
       throw new UploadRefusal(rule, index);
     };
+    if (process.platform !== "linux" && process.platform !== "darwin") refuse("unreadable");
     // 2. ~/ is the home; any other relative form is refused. Normalised lexically, then made canonical.
     if (!given.startsWith("~/") && !path.isAbsolute(given)) refuse("relative path");
     const lexical = path.resolve(given.startsWith("~/") ? path.join(home, given.slice(2)) : given);
@@ -178,11 +181,18 @@ export async function prepareFiles(files: unknown, options: UploadOptions = {}):
       if (!stat.isFile()) refuse("not a regular file");
       if (stat.nlink !== 1) refuse("hard link");
       if (stat.dev !== approved.dev || stat.ino !== approved.ino) refuse("changed while reading");
-      // Where the open handle really is: a parent folder swapped for a symlink is not stopped by O_NOFOLLOW.
-      const located = await readlink(`/proc/self/fd/${handle.fd}`).catch(() => refuse("unreadable"));
+      // Re-resolve after opening: O_NOFOLLOW protects only the final path component. A parent can
+      // be replaced by a symlink between validation and open, so re-check its current location
+      // and prove that it still names the already-open file before reading from that handle.
+      await options.beforeLocationCheck?.(index);
+      wanted();
+      const located = await realpath(canonical).catch(() => refuse("changed while reading"));
       wanted();
       const locatedRule = placeRule(located, roots);
       if (locatedRule) refuse(locatedRule);
+      const locatedStat = await statPath(located).catch(() => refuse("changed while reading"));
+      wanted();
+      if (locatedStat.dev !== stat.dev || locatedStat.ino !== stat.ino) refuse("changed while reading");
       // 6. The total stays under the limit; what is read must be exactly the size the handle had.
       if (total + stat.size >= UPLOAD_LIMIT) refuse("too large");
       await options.beforeRead?.(index);

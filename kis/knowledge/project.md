@@ -37,7 +37,9 @@ and the spec's upload section; threat model: `docs/security.md`. Facts that are 
   1.64.0: an upgrade that drops it makes every click fail in the tests.
 - Playwright 1.64.0 discards a CDP error from `Page.setInterceptFileChooserDialog` on a frame session, so a disable
   the browser rejects on a live session is not seen (owner accepted this gap 2026-10-25; documented in security.md).
-- The location recheck reads `/proc/self/fd`: uploads work on Linux only; elsewhere every upload is refused.
+- Uploads work on Linux and macOS; other operating systems are refused. After opening a file, the server re-resolves its
+  path, rechecks the home and denylist rules, and compares device/inode identity with the open handle before reading
+  through that handle. macOS privacy controls may still deny access to locations such as Downloads.
 - The container has `wtype`: `docker exec -u abc -e XDG_RUNTIME_DIR=/config/.XDG -e WAYLAND_DISPLAY=wayland-0
   <container> wtype -k Escape` types on its desktop (the tests use it to see whether a native dialog is open).
 - A popup cannot open a chooser from its opener's click (user activation does not carry over); a test needs a

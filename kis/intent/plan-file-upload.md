@@ -4,7 +4,56 @@ Let the agent attach a file from the host to a page's file input. Scope approved
 same day after the plan review below. Status lives in `kis/state/current.md`. How uploads reach a remote browser, and
 why the native dialog cannot be used, is in `kis/knowledge/project.md` (Known limits).
 
-Status: all tasks done on branch upload-impl (abdb38f), verified 2026-10-25; merge is the owner's (see State).
+Original Linux-only implementation: complete on branch upload-impl (abdb38f), verified 2026-10-25; the owner handles releases (see State).
+
+## Planned revision: macOS host uploads
+
+Status: implemented; macOS upload unit coverage passes on the owner's macOS host. Linux CI and integration checks remain to run in CI.
+
+### Goal
+
+Allow `browser_upload` to read eligible host files on macOS while keeping the existing home-folder, denylist, regular-file, hard-link, size, and checked-handle protections. Linux behavior remains supported. Windows remains unsupported and continues to refuse uploads.
+
+### Owner decisions (2026-11-16)
+
+- Support macOS only; do not add Windows support in this revision.
+- Preserve the current path-safety checks, including detection of a path redirected into a denied location between initial validation and open.
+- Recheck the resolved path after opening: enforce the home and denylist rules again, then compare the path's device and inode with the already-open handle before reading. Read only from the checked handle; never reopen the path for Playwright.
+- Change code, tests, CI and relevant documentation only. Do not upload the eight JPEGs to Facebook as part of this revision; the draft stays unpublished.
+
+### Files likely involved
+
+- `src/upload.ts`: replace the `/proc/self/fd`-only location check with the post-open path and handle identity recheck; retain explicit unsupported-platform behavior for Windows.
+- `test/unit/upload.test.mjs`: cover macOS-compatible file reading, denied-path redirection after open, identity mismatch, same-handle reads, and portable descriptor cleanup checks.
+- `.github/workflows/ci.yml`: add a focused macOS job for the upload unit suite; leave the existing Ubuntu matrix and integration job intact.
+- `docs/security.md`, `docs/how-it-works.md`, and `kis/knowledge/project.md`: describe Linux and macOS support, the continued Windows refusal, and the fact that host OS privacy permissions still apply.
+
+### Acceptance checks
+
+1. On macOS, a regular file inside the server's home is read into the same `{name, mimeType, buffer}` payload; the file is read through the opened descriptor.
+2. A denied path is still refused before reading. A deterministic test that redirects an allowed parent directory into `.aws` after open but before the recheck returns the fixed `denied location` refusal and sends no bytes.
+3. If the checked path no longer resolves to the opened device/inode, refuse with `changed while reading`; existing growth, shrinkage, symlink, hard-link, and size checks still pass.
+4. Existing Linux upload unit coverage passes. A focused macOS CI job builds and runs `test/unit/upload.test.mjs` on a supported macOS runner.
+5. Windows remains unsupported and returns the existing fixed unreadable refusal; no bypass or path-based reopen is introduced.
+6. Documentation no longer says uploads are Linux-only and accurately records macOS privacy permissions as an OS-level access constraint.
+
+### Risks and assumptions
+
+- Re-resolving the checked path and comparing its `stat` identity with the open handle must detect parent-path swaps without relying on `/proc`; never weaken the home or denylist rules to make macOS pass.
+- macOS privacy controls can still prevent the MCP process from reading Downloads. This change does not grant OS permissions; those failures remain ordinary unreadable refusals.
+- The macOS CI job is limited to the browser-free upload unit suite; the existing real-browser integration suite remains on Ubuntu.
+
+### Verification
+
+Run the upload unit suite on macOS and Linux, run the existing full Linux test suite, and confirm the new macOS CI job passes. Do not interact with or publish the Facebook draft during this revision.
+
+### KIS synchronization
+
+- Knowledge: after implementation, update the existing platform-limit fact in `kis/knowledge/project.md`.
+- Intent: this section records the approved macOS-support revision.
+- State: track this plan's review gate now; update task and proof during ACT and SYNCHRONIZE.
+
+
 
 ## Decisions (owner, 2026-10-25)
 
@@ -166,7 +215,7 @@ releasing (1.1.0 is the owner's call).
 `npm test` against the test stack; the acceptance checks above; one real Claude Code session that clicks a chooser
 button, gets the hint, then uploads a fixture file with `browser_upload`, with the SHA-256 matching.
 
-## Review
+## Original implementation review (historical)
 - Reviewed: 2026-10-25 by codex gpt-6.1-sol (high), two rounds (13 findings, then a re-check with 4 more); plan hash 2717acb7a536
 - [fixed] Array argument fails the validator - task 1 adds the array field type to schema.ts and validate.ts, with tests through the MCP handler
 - [fixed] /proc, /run, /etc and other pseudo-files pass the denylist - owner: only files inside the server's own home
@@ -185,3 +234,6 @@ button, gets the hint, then uploads a fixture file with `browser_upload`, with t
 - [fixed] Popup chooser answer not observable - answer reworded to what the server can see
 - [fixed] Refusals trusted an arbitrary filename - fixed wording and argument position only, test with a forged role marker
 - [fixed] lastModifiedMs dropped by public payloads - removed from the payload; not preserved
+
+## Review
+- Reviewed: waived by the owner 2026-11-16; plan hash 281b4b135963

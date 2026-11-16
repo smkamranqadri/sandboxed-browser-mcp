@@ -41,8 +41,10 @@ What sandboxed-browser-mcp protects, and what it does not. To report a problem, 
   bytes, not a path. A refusal names the rule and the argument's position, never the path. Not covered: a secret in an
   ordinary file (a token in `~/notes.txt`) or under a path the denylist does not know; a file rewritten in place,
   keeping its size, while it is read; the denylist is a filter, not a wall; and once the page has the bytes, its
-  scripts may send them to any host (sub-resources are not fenced, above). Linux only: the location check reads
-  `/proc/self/fd`, and on other systems every upload is refused. File chooser interception (during the agent's own
+  scripts may send them to any host (sub-resources are not fenced, above). Uploads are supported on Linux and macOS;
+  other operating systems are refused. After opening a file, the server resolves its path again, rechecks the home and
+  denylist rules, and compares the path's device and inode with the open handle before reading from that handle. macOS
+  privacy controls may still deny access to locations such as Downloads. File chooser interception (during the agent's own
   click) is switched off when the call ends; a switch-off that fails or is not answered in time drops the browser
   connection, which ends it. Not seen: a switch-off the browser rejects while its session lives, because Playwright
   1.64.0 discards that error, so later choosers on that page could stay caught without a dialog.
