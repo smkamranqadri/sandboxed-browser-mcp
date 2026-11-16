@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 (2026-11-16)
+
+### Added
+
+- **macOS host uploads.** `browser_upload` now reads eligible files on Linux and macOS while retaining the home-folder and denylist checks, checked-handle reads, and size limits. macOS privacy settings can still restrict access to folders such as Downloads. Windows remains unsupported.
+
+### Security
+
+- After opening a file, the server re-resolves its path, rechecks the home and denylist rules, and verifies device/inode identity with the open handle before reading.
+
 ## 1.2.0 (2026-11-13)
 
 ### Added

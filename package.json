@@ -1,6 +1,6 @@
 {
   "name": "sandboxed-browser-mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A standalone stdio MCP server that drives a sandboxed Chromium container over CDP: twelve browser tools sized for a model, with a host allowlist and untrusted-content envelope",
   "type": "module",
   "license": "MIT",
@@ -13,7 +13,17 @@
   "bugs": {
     "url": "https://github.com/smkamranqadri/sandboxed-browser-mcp/issues"
   },
-  "keywords": ["mcp", "model-context-protocol", "browser", "chromium", "cdp", "playwright", "sandbox", "docker", "ai-agents"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "browser",
+    "chromium",
+    "cdp",
+    "playwright",
+    "sandbox",
+    "docker",
+    "ai-agents"
+  ],
   "private": true,
   "engines": {
     "node": ">=22.4"

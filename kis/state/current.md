@@ -1,7 +1,7 @@
 # State
 
 Branch: main
-Stamp: main e88cba5 76b5bde876e1
+Stamp: main 3ec2914 53ccd708986e
 Mode: Standard
 Task: release and push macOS support for `browser_upload` after KIS synchronization and review.
 Status: code, tests, docs, KIS plan and knowledge are updated. Local macOS unit suite passed 165/165 (upload suite 27/27); Linux Node 24 unit suite passed 165/165 and integration passed 98/98. GitHub-hosted CI has not run remotely.
