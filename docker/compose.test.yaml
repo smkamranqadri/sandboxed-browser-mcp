@@ -6,7 +6,7 @@
 # the tests to read what it received.
 services:
   fixture:
-    image: node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567
+    image: node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
     command: ["node", "/fixture/fixture-server.mjs"]
     volumes: ["../test/integration/fixture-server.mjs:/fixture/fixture-server.mjs:ro"]
     ports: ["127.0.0.1:${FIXTURE_PORT:-3299}:80"]
